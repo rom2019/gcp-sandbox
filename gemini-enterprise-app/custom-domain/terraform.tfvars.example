@@ -1,0 +1,26 @@
+# GCP Project ID
+project_id = "YOUR_GCP_PROJECT_ID"
+
+# Region
+region = "YOUR_GCP_PROJECT_REGION"
+
+# Custom Domain
+domain_name = "YOUR_CUSTOM_DOMAIN"
+
+# SSL Certificate type: 'managed' (Google-managed SSL certificate) or 'self_signed'
+ssl_cert_type = "managed"
+
+# Route rules to redirect domain paths to Gemini Enterprise App / Agent Space URLs
+routes = [
+  {
+    prefix_match           = "/"
+    priority               = 1
+    host_redirect          = "vertexaisearch.cloud.google.com"
+    path_redirect          = "/us/home/cid/YOUR_APP_CID" # Replace with your app CID path
+    redirect_response_code = "FOUND"
+  }
+]
+
+# Set to true if you manage DNS for your custom domain in Google Cloud DNS
+enable_cloud_dns = false
+dns_zone_name    = "YOUR CUSOM DOMAIN ZONE NAME"
