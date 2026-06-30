@@ -7,44 +7,20 @@
 ## Architecture
 
 ```
-                        ┌─────────────────────────────────────────────────────────┐
-                        │                   Google Cloud Project                  │
-                        │                                                         │
-  User Browser          │  ┌──────────────────────────────────────────────────┐  │
-      │                 │  │       Global External Application Load Balancer   │  │
-      │  DNS A Record   │  │                                                   │  │
-      ▼                 │  │  ┌─────────────┐      ┌────────────────────────┐ │  │
- ┌──────────────┐       │  │  │ Forwarding  │      │   Target HTTP Proxy    │ │  │
- │  Custom      │       │  │  │ Rule (80)   │─────▶│  (HTTP→HTTPS 301)     │ │  │
- │  Domain      │       │  │  └─────────────┘      └────────────────────────┘ │  │
- │  gemini.     │──────▶│  │                                                   │  │
- │  gomdol.     │       │  │  ┌─────────────┐      ┌────────────────────────┐ │  │
- │  cloud       │       │  │  │ Forwarding  │      │   Target HTTPS Proxy   │ │  │
- └──────────────┘       │  │  │ Rule (443)  │─────▶│  + Managed SSL Cert   │ │  │
-      │                 │  │  └─────────────┘      └───────────┬────────────┘ │  │
-      │                 │  │                                    │              │  │
-      │                 │  │                        ┌───────────▼────────────┐ │  │
-      │                 │  │                        │       URL Map          │ │  │
-      │                 │  │                        │  Route Rules           │ │  │
-      │                 │  │                        │  (prefix_match → 302   │ │  │
-      │                 │  │                        │   URL Redirect)        │ │  │
-      │                 │  │                        └───────────┬────────────┘ │  │
-      │                 │  │                                    │              │  │
-      │                 │  │                        ┌───────────▼────────────┐ │  │
-      │                 │  │                        │   Backend Service      │ │  │
-      │                 │  │                        │ + Internet NEG         │ │  │
-      │                 │  │                        │ (INTERNET_FQDN_PORT)   │ │  │
-      │                 │  │                        └────────────────────────┘ │  │
-      │                 │  └──────────────────────────────────────────────────┘  │
-      │                 └─────────────────────────────────────────────────────────┘
-      │
-      │  302 Redirect
-      ▼
-┌─────────────────────────────────┐
-│  Gemini Enterprise App          │
-│  vertexaisearch.cloud.google.com│
-│  (Google Identity 인증 포함)    │
-└─────────────────────────────────┘
+User Browser
+    │ DNS A Record
+    ▼
+Global External IP (static)
+    │
+    ├─ Port 80  → HTTP Proxy  → URL Map (301 redirect → HTTPS)
+    │
+    └─ Port 443 → Target HTTPS Proxy → URL Map (geapp-lb)
+                      │
+                      └─ Route Rules → URL Redirect (302)
+                                           │
+                                           ▼
+                              vertexaisearch.cloud.google.com
+                              (Gemini Enterprise App)
 ```
 
 ### 트래픽 흐름
