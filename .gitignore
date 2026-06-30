@@ -1,0 +1,14 @@
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars          
+backend.tf
+.terraform.lock.hcl
+
+# 다이어그램 소스
+*.drawio
+
+# macOS
+.DS_Store
+**/.DS_Store
