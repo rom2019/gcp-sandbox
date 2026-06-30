@@ -17,7 +17,7 @@ output "custom_domain" {
 # 3. SSL 인증서 ID 출력
 output "ssl_certificate_id" {
   description = "부하 분산기에 적용된 SSL 인증서 리소스 ID."
-  value       = var.ssl_cert_type == "managed" ? google_compute_managed_ssl_certificate.geapp_managed_cert[0].id : google_compute_ssl_certificate.geapp_self_signed_cert[0].id
+  value       = google_compute_managed_ssl_certificate.geapp_managed_cert.id
 }
 
 # 4. DNS 설정 안내 메시지 출력

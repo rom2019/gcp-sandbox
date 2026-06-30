@@ -22,32 +22,20 @@ variable "domain_name" {
   default     = "gemini.gomdol.cloud"
 }
 
-# 4. SSL 인증서 발급 방식 선택 ('managed' 또는 'self_signed')
-variable "ssl_cert_type" {
-  type        = string
-  description = "SSL 인증서 종류 선택: 'managed' (Google 관리형 무료 SSL) 또는 'self_signed' (자체 서명 인증서)."
-  default     = "managed"
-
-  validation {
-    condition     = contains(["managed", "self_signed"], var.ssl_cert_type)
-    error_message = "ssl_cert_type은 'managed' 또는 'self_signed' 중 하나여야 합니다."
-  }
-}
-
-# 5. Gemini Enterprise App 백엔드 FQDN (도메인)
+# 4. Gemini Enterprise App 백엔드 FQDN (도메인)
 variable "backend_fqdn" {
   type        = string
   description = "Google 관리형 Gemini Enterprise App (Vertex AI Search / Agent Space) 엔드포인트 도메인."
   default     = "vertexaisearch.cloud.google.com"
 }
 
-# 6. 커스텀 도메인 경로별 URL 리디렉션 라우팅 규칙 목록
+# 5. 커스텀 도메인 경로별 URL 리디렉션 라우팅 규칙 목록
 variable "routes" {
   type = list(object({
-    prefix_match           = string           # 요청 매칭 경로 (예: "/" 또는 "/drive-app")
-    priority               = number           # 라우팅 우순위 (낮은 숫자가 높은 우선순위)
-    host_redirect          = string           # 리디렉션 대상 호스트 (예: vertexaisearch.cloud.google.com)
-    path_redirect          = string           # 리디렉션 대상 URL 경로 (예: /home/cid/xxxx-xxxx)
+    prefix_match           = string                    # 요청 매칭 경로 (예: "/" 또는 "/drive-app")
+    priority               = number                    # 라우팅 우순위 (낮은 숫자가 높은 우선순위)
+    host_redirect          = string                    # 리디렉션 대상 호스트 (예: vertexaisearch.cloud.google.com)
+    path_redirect          = string                    # 리디렉션 대상 URL 경로 (예: /home/cid/xxxx-xxxx)
     redirect_response_code = optional(string, "FOUND") # HTTP 리디렉션 응답 코드 (FOUND = 302, MOVED_PERMANENTLY_DEFAULT = 301)
   }))
   description = "커스텀 도메인 요청 경로를 Gemini Enterprise App 실제 서비스 URL로 매핑하는 리디렉션 규칙 목록."
@@ -62,14 +50,14 @@ variable "routes" {
   ]
 }
 
-# 7. Google Cloud DNS 관리 여부
+# 6. Google Cloud DNS 관리 여부
 variable "enable_cloud_dns" {
   type        = bool
   description = "Google Cloud DNS를 통해 A 레코드를 자동 생성/관리할지 여부 (기본값: false)."
   default     = false
 }
 
-# 8. Cloud DNS 영역 이름 (enable_cloud_dns = true 일 때 사용)
+# 7. Cloud DNS 영역 이름 (enable_cloud_dns = true 일 때 사용)
 variable "dns_zone_name" {
   type        = string
   description = "Cloud DNS Managed Zone 이름 (enable_cloud_dns가 true일 때 필수)."

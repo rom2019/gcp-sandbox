@@ -4,8 +4,9 @@
 # GCP 프로젝트에서 인프라 구성에 필요한 필수 API 목록을 정의하고 활성화합니다.
 locals {
   required_apis = compact([
-    "compute.googleapis.com",    # Compute Engine & Load Balancer API
-    "orgpolicy.googleapis.com",  # Organization Policy API (조직 정책 제약 해제용)
+    "cloudresourcemanager.googleapis.com",              # Cloud Resource Manager API (Terraform bootstrap 필수 - 수동 선활성화 필요)
+    "compute.googleapis.com",                           # Compute Engine & Load Balancer API
+    "orgpolicy.googleapis.com",                         # Organization Policy API (조직 정책 제약 해제용)
     var.enable_cloud_dns ? "dns.googleapis.com" : null, # Cloud DNS API (선택사항)
   ])
 }
@@ -22,25 +23,27 @@ resource "google_project_service" "apis" {
 # 2. 조직 정책 (Organization Policy) 해제
 # ────────────────────────────────────────────────────────────────────
 # 인터넷 NEG(Internet Network Endpoint Group) 생성을 차단하는 조직 정책 제약을 프로젝트 수준에서 해제합니다.
-resource "google_project_organization_policy" "disable_internet_neg" {
-  project    = var.project_id
-  constraint = "constraints/compute.disableInternetNetworkEndpointGroup"
+resource "google_org_policy_policy" "disable_internet_neg" {
+  name   = "projects/${var.project_id}/policies/compute.disableInternetNetworkEndpointGroup"
+  parent = "projects/${var.project_id}"
 
-  boolean_policy {
-    enforced = false # INEG 생성 허용 (제약 조건 비활성화)
+  spec {
+    rules {
+      enforce = "FALSE" # INEG 생성 허용 (제약 조건 비활성화)
+    }
   }
 
   depends_on = [google_project_service.apis]
 }
 
 # 로드밸런서 타입 생성 제한(restrictLoadBalancerCreationForTypes) 해제
-resource "google_project_organization_policy" "allow_lb_types" {
-  project    = var.project_id
-  constraint = "constraints/compute.restrictLoadBalancerCreationForTypes"
+resource "google_org_policy_policy" "allow_lb_types" {
+  name   = "projects/${var.project_id}/policies/compute.restrictLoadBalancerCreationForTypes"
+  parent = "projects/${var.project_id}"
 
-  list_policy {
-    allow {
-      all = true # 모든 타입의 로드밸런서 생성 허용
+  spec {
+    rules {
+      allow_all = "TRUE" # 모든 타입의 로드밸런서 생성 허용
     }
   }
 
@@ -52,13 +55,13 @@ resource "time_sleep" "wait_for_org_policy" {
   create_duration = "60s"
 
   triggers = {
-    allow_lb_types       = google_project_organization_policy.allow_lb_types.id
-    disable_internet_neg = google_project_organization_policy.disable_internet_neg.id
+    allow_lb_types       = google_org_policy_policy.allow_lb_types.id
+    disable_internet_neg = google_org_policy_policy.disable_internet_neg.id
   }
 
   depends_on = [
-    google_project_organization_policy.disable_internet_neg,
-    google_project_organization_policy.allow_lb_types
+    google_org_policy_policy.disable_internet_neg,
+    google_org_policy_policy.allow_lb_types
   ]
 }
 
@@ -77,7 +80,14 @@ resource "google_compute_global_address" "external_ip" {
 # ────────────────────────────────────────────────────────────────────
 # 4. 인터넷 NEG (Global Internet Network Endpoint Group) 및 엔드포인트
 # ────────────────────────────────────────────────────────────────────
-# Google 관리형 Gemini Enterprise App (Vertex AI Search) 백엔드 FQDN 연결용 인터넷 NEG 생성
+# [참고] 이 NEG와 아래 Backend Service(섹션 5)는 실제 트래픽이 흐르지 않습니다.
+# URL Map의 route_rules가 prefix "/" 로 모든 요청을 가로채 302 리디렉션하므로
+# default_service(백엔드)로 도달하는 트래픽은 없습니다.
+# 단, google_compute_url_map 리소스는 default_service 필드가 필수이기 때문에
+# 형식적으로 백엔드를 지정하기 위해 생성합니다.
+# (Gemini Enterprise App은 Google Identity 인증을 요구하므로 프록시가 불가능하고,
+#  클라이언트 사이드 리디렉션 방식만 지원됩니다.)
+resource "google_compute_global_network_endpoint_group" "geapp_ineg" {
 resource "google_compute_global_network_endpoint_group" "geapp_ineg" {
   name                  = "geapp-ineg"
   project               = var.project_id
@@ -86,7 +96,7 @@ resource "google_compute_global_network_endpoint_group" "geapp_ineg" {
 
   depends_on = [
     google_project_service.apis,
-    google_project_organization_policy.disable_internet_neg,
+    google_org_policy_policy.disable_internet_neg,
     time_sleep.wait_for_org_policy
   ]
 }
@@ -102,13 +112,13 @@ resource "google_compute_global_network_endpoint" "geapp_endpoint" {
 # ────────────────────────────────────────────────────────────────────
 # 5. 전역 백엔드 서비스 (Global Backend Service)
 # ────────────────────────────────────────────────────────────────────
-# 부하 분산기와 인터넷 NEG 백엔드를 연결하는 전역 HTTPS 백엔드 서비스
+# URL Map의 default_service 필수 요건을 충족하기 위한 백엔드 서비스입니다.
+# 실제 트래픽은 route_rules의 url_redirect가 모두 처리하므로 이 백엔드로는 요청이 도달하지 않습니다.
 resource "google_compute_backend_service" "geapp_bes" {
   name                  = "geapp-ineg-bes"
   project               = var.project_id
   load_balancing_scheme = "EXTERNAL_MANAGED" # 최신 외부 관리형 애플리케이션 부하 분산기
   protocol              = "HTTPS"
-  port_name             = "https"
 
   backend {
     group = google_compute_global_network_endpoint_group.geapp_ineg.id
@@ -116,11 +126,10 @@ resource "google_compute_backend_service" "geapp_bes" {
 }
 
 # ────────────────────────────────────────────────────────────────────
-# 6. SSL 인증서 구성 (Google 관리형 인증서 또는 자체 서명 인증서)
+# 6. SSL 인증서 구성 (Google 관리형 인증서)
 # ────────────────────────────────────────────────────────────────────
-# 옵션 1: Google 관리형 무료 SSL 인증서 (권장 - DNS A 레코드 전파 후 자동 갱신/발급)
+# Google 관리형 무료 SSL 인증서 (DNS A 레코드 전파 후 자동 갱신/발급)
 resource "google_compute_managed_ssl_certificate" "geapp_managed_cert" {
-  count   = var.ssl_cert_type == "managed" ? 1 : 0
   name    = "geapp-managed-cert"
   project = var.project_id
 
@@ -129,40 +138,6 @@ resource "google_compute_managed_ssl_certificate" "geapp_managed_cert" {
   }
 }
 
-# 옵션 2: 개발/테스트용 자체 서명 인증서 (ssl_cert_type = "self_signed" 일 때)
-resource "tls_private_key" "self_signed" {
-  count     = var.ssl_cert_type == "self_signed" ? 1 : 0
-  algorithm = "RSA"
-  rsa_bits  = 2048
-}
-
-resource "tls_self_signed_cert" "self_signed" {
-  count           = var.ssl_cert_type == "self_signed" ? 1 : 0
-  private_key_pem = tls_private_key.self_signed[0].private_key_pem
-
-  subject {
-    common_name  = var.domain_name
-    organization = "Gemini Enterprise App"
-  }
-
-  dns_names = [var.domain_name]
-
-  validity_period_hours = 8760 # 유효기간: 1년
-
-  allowed_uses = [
-    "key_encipherment",
-    "digital_signature",
-    "server_auth",
-  ]
-}
-
-resource "google_compute_ssl_certificate" "geapp_self_signed_cert" {
-  count       = var.ssl_cert_type == "self_signed" ? 1 : 0
-  name        = "geapp-self-signed-cert"
-  project     = var.project_id
-  private_key = tls_private_key.self_signed[0].private_key_pem
-  certificate = tls_self_signed_cert.self_signed[0].cert_pem
-}
 
 # ────────────────────────────────────────────────────────────────────
 # 7. HTTPS URL Map (호스트 및 경로 규칙 기반 URL 리디렉션)
@@ -214,11 +189,7 @@ resource "google_compute_target_https_proxy" "https_proxy" {
   project = var.project_id
   url_map = google_compute_url_map.geapp_lb.id
 
-  ssl_certificates = var.ssl_cert_type == "managed" ? [
-    google_compute_managed_ssl_certificate.geapp_managed_cert[0].id
-  ] : [
-    google_compute_ssl_certificate.geapp_self_signed_cert[0].id
-  ]
+  ssl_certificates = [google_compute_managed_ssl_certificate.geapp_managed_cert.id]
 }
 
 
@@ -246,7 +217,7 @@ resource "google_compute_url_map" "http_redirect" {
   project = var.project_id
 
   default_url_redirect {
-    https_redirect         = true                       # HTTPS로 자동으로 리디렉션
+    https_redirect         = true                        # HTTPS로 자동으로 리디렉션
     redirect_response_code = "MOVED_PERMANENTLY_DEFAULT" # 301 Redirect
     strip_query            = false
   }

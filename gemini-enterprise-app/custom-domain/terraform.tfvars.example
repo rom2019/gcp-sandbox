@@ -1,14 +1,9 @@
 # GCP Project ID
 project_id = "YOUR_GCP_PROJECT_ID"
 
-# Region
-region = "YOUR_GCP_PROJECT_REGION"
 
 # Custom Domain
 domain_name = "YOUR_CUSTOM_DOMAIN"
-
-# SSL Certificate type: 'managed' (Google-managed SSL certificate) or 'self_signed'
-ssl_cert_type = "managed"
 
 # Route rules to redirect domain paths to Gemini Enterprise App / Agent Space URLs
 routes = [
