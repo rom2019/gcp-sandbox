@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gemini Docs Hub</title>
+    <title>GCP Storage & Custom Domain Hosting</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet" />
@@ -15,40 +15,70 @@
     <header class="border-b border-slate-800 bg-slate-950/50 backdrop-blur">
         <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
             <div class="flex items-center gap-3">
-                <span class="material-symbols-outlined text-blue-400">auto_awesome</span>
-                <span class="font-bold text-lg tracking-wide text-white">Gemini Docs Portal</span>
+                <span class="material-symbols-outlined text-blue-400">cloud_done</span>
+                <span class="font-bold text-lg tracking-wide text-white">GCP Cloud Storage Hosting</span>
             </div>
-            <span class="text-xs font-mono bg-blue-500/10 text-blue-400 border border-blue-500/20 px-3 py-1 rounded-full">gemini-docs.gomdol.cloud</span>
+            <span class="text-xs font-mono bg-blue-500/10 text-blue-400 border border-blue-500/20 px-3 py-1 rounded-full">gcs-custom-domain.cloud</span>
         </div>
     </header>
 
     <main class="max-w-6xl mx-auto px-6 py-16 flex-1 w-full">
         <div class="mb-12">
-            <h1 class="text-4xl font-extrabold text-white mb-4">AI Agent Documentation Directory</h1>
-            <p class="text-slate-400 text-lg">GCP 및 BigQuery 기반 AI 에이전트 포트폴리오 문서 디렉토리입니다.</p>
+            <h1 class="text-4xl font-extrabold text-white mb-4">GCP Storage Bucket & Custom Domain Hosting</h1>
+            <p class="text-slate-400 text-lg">Google Cloud Storage 기반의 정적 웹사이트 호스팅과 Custom Domain, HTTPS(Cloud CDN/Load Balancer) 구축 가이드 포털입니다.</p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <!-- Card 1: BQ CA Agent -->
-            <a href="/bq-ca-agent/" class="group block p-6 bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-blue-500/50 rounded-2xl transition-all duration-300 shadow-lg">
+            <!-- Card 1: GCS Hosting Guide & Architecture -->
+            <a href="/gcs-hosting-guide/" class="group block p-6 bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-blue-500/50 rounded-2xl transition-all duration-300 shadow-lg">
                 <div class="flex items-center justify-between mb-4">
                     <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <span class="material-symbols-outlined text-2xl">database</span>
+                        <span class="material-symbols-outlined text-2xl">dns</span>
                     </div>
                     <span class="material-symbols-outlined text-slate-500 group-hover:text-blue-400 group-hover:translate-x-1 transition-all">arrow_forward</span>
                 </div>
-                <h2 class="text-xl font-bold text-white mb-2 group-hover:text-blue-400 transition-colors">BigQuery SQL Agent</h2>
-                <p class="text-slate-400 text-sm mb-4 line-clamp-2">BigQuery 쿼리 최적화, Partitioning 전략 수립 및 비용 절감을 위한 신경망 엔지니어링 에이전트 포트폴리오</p>
+                <h2 class="text-xl font-bold text-white mb-2 group-hover:text-blue-400 transition-colors">Architecture & Setup Guide</h2>
+                <p class="text-slate-400 text-sm mb-4 line-clamp-2">Google Cloud Storage 버킷 정적 웹사이트 설정, Cloud Load Balancer, Cloud CDN 및 Managed SSL Certificate 연동 아키텍처 상세 가이드</p>
                 <div class="flex items-center gap-2 text-xs font-mono text-slate-500">
-                    <span>/bq-ca-agent/</span>
+                    <span>/gcs-hosting-guide/</span>
                 </div>
             </a>
+
+            <!-- Card 2: Terraform IaC Management -->
+            <div class="p-6 bg-slate-800/40 border border-slate-700/40 rounded-2xl shadow-lg">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-2xl">code</span>
+                    </div>
+                    <span class="text-xs font-mono text-slate-500">IaC</span>
+                </div>
+                <h2 class="text-xl font-bold text-white mb-2">Terraform Infrastructure</h2>
+                <p class="text-slate-400 text-sm mb-4">Storage Bucket, Backend Bucket, URL Map, Target HTTPS Proxy 및 Cloud DNS A 레코드 생성을 위한 Terraform 자동화 구성</p>
+                <div class="flex items-center gap-2 text-xs font-mono text-slate-500">
+                    <span>main.tf / variables.tf</span>
+                </div>
+            </div>
+
+            <!-- Card 3: Cloud Security & SSL -->
+            <div class="p-6 bg-slate-800/40 border border-slate-700/40 rounded-2xl shadow-lg">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-2xl">lock</span>
+                    </div>
+                    <span class="text-xs font-mono text-slate-500">HTTPS</span>
+                </div>
+                <h2 class="text-xl font-bold text-white mb-2">Google Managed SSL & CDN</h2>
+                <p class="text-slate-400 text-sm mb-4">자동 갱신되는 Google-Managed SSL Certificate 구축 및 Cloud CDN을 통한 글로벌 엣지 앤드포인트 캐싱 및 가속</p>
+                <div class="flex items-center gap-2 text-xs font-mono text-slate-500">
+                    <span>HTTPS / CDN Caching</span>
+                </div>
+            </div>
         </div>
     </main>
 
     <footer class="border-t border-slate-800 py-8 bg-slate-950">
         <div class="max-w-6xl mx-auto px-6 text-center text-slate-500 text-sm">
-            © 2024 Gemini Docs. Hosted on Google Cloud Storage & CDN.
+            © 2026 GCP Storage & Custom Domain Hosting. Powered by Google Cloud Platform.
         </div>
     </footer>
 </body>

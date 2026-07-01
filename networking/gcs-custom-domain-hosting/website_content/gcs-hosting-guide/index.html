@@ -1,0 +1,194 @@
+<!DOCTYPE html><html lang="ko" style=""><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0" name="viewport"><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&amp;family=Hanken+Grotesk:wght@500&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><title>GCP Storage & Custom Domain Hosting Architecture Guide</title><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;background: radial-gradient(circle at 50% -20%, #c8e6ff 0%, #f8f9fa 40%);min-height:100vh;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script>tailwind.config={theme:{extend:{colors:{"secondary":"#0058bb","on-tertiary-container":"#3d2700","tertiary-fixed-dim":"#ffba45","on-background":"#191c1d","primary-container":"#0a71e8","on-surface-variant":"#364457","on-primary":"#ffffff","surface-container-low":"#f3f4f5","surface-dim":"#d9dadb","tertiary-fixed":"#ffddb0","on-error":"#ffffff","surface-container":"#edeeef","on-secondary-container":"#fefcff","surface":"#f8f9fa","surface-container-highest":"#e1e3e4","outline-variant":"#b0c4de","secondary-container":"#1471e6","on-primary-container":"#001f4a","surface-container-high":"#e7e8e9","primary-fixed-dim":"#8ab6ff","on-surface":"#191c1d","on-tertiary":"#ffffff","on-primary-fixed-variant":"#003574","on-tertiary-fixed":"#281800","surface-tint":"#004799","on-primary-fixed":"#001332","primary-fixed":"#c8ffdb","on-error-container":"#93000a","primary":"#0058bb","secondary-fixed":"#d8e2ff","on-tertiary-fixed-variant":"#614000","surface-container-lowest":"#ffffff","on-secondary-fixed":"#001a41","error-container":"#ffdad6","secondary-fixed-dim":"#adc7ff","inverse-surface":"#2e3132","inverse-on-surface":"#f0f1f2","outline":"#647b8b","on-secondary":"#ffffff","surface-bright":"#f8f9fa","on-secondary-fixed-variant":"#004493","background":"#f8f9fa","tertiary-container":"#c58600","inverse-primary":"#8ab6ff","tertiary":"#805600","error":"#ba1a1a","surface-variant":"#e1e3e4"},borderRadius:{DEFAULT:"0.25rem",lg:"0.5rem",xl:"0.75rem",full:"9999px"},spacing:{"stack-lg":"32px","margin-desktop":"40px","margin-mobile":"16px","stack-md":"16px","container-max":"1280px","gutter":"24px","stack-sm":"8px"},fontFamily:{"headline-lg":["Plus Jakarta Sans"],"body-md":["Plus Jakarta Sans"],"body-lg":["Plus Jakarta Sans"],"headline-md":["Plus Jakarta Sans"],"display-lg":["Plus Jakarta Sans"],"label-technical":["Hanken Grotesk"]},fontSize:{"headline-lg":["32px",{lineHeight:"1.3",fontWeight:"600"}],"body-md":["14px",{lineHeight:"1.6",fontWeight:"400"}],"body-lg":["18px",{lineHeight:"1.6",fontWeight:"400"}],"headline-md":["24px",{lineHeight:"1.4",fontWeight:"500"}],"display-lg":["48px",{lineHeight:"1.2",letterSpacing:"-0.02em",fontWeight:"600"}],"label-technical":["12px",{lineHeight:"1",letterSpacing:"0.05em",fontWeight:"500"}]}}}}</script></head><body class="font-body-md text-on-surface antialiased"><header class="fixed top-0 left-0 right-0 z-50 pt-6 px-margin-desktop"><div class="max-w-container-max mx-auto flex items-center justify-between h-16 bg-surface-container-lowest/40 backdrop-blur-xl border border-white/20 rounded-full px-8 shadow-[0_4px_30px_rgba(0,0,0,0.03)]"><div class="flex items-center gap-4"><div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[20px]">cloud</span></div><span class="font-headline-md text-headline-md text-on-surface">GCS Custom Domain</span></div>
+  <nav class="hidden md:flex items-center gap-10" data-active-classes="text-primary font-semibold">
+  <a aria-current="page" class="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md text-primary font-semibold" data-path="home" href="#home">Home</a>
+  <a class="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md" data-path="overview" href="#overview">Overview</a>
+  <a class="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md" data-path="technical-architecture" href="#technical-architecture">Architecture</a>
+  <a class="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md" data-path="features" href="#features">Key Features</a>
+  <a class="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md" data-path="code-samples" href="#code-samples">IaC Code</a>
+</nav>
+  <div class="flex items-center gap-6"><a href="/" class="bg-inverse-surface text-primary font-semibold py-2.5 px-6 rounded-full text-body-md hover:bg-on-background transition-all">Back to Main</a></div></div></header><main class="pt-16"><div class="flex flex-col w-full relative">
+<!-- Top Title Section -->
+<section class="px-margin-desktop py-24 relative overflow-hidden" id="home">
+<div class="max-w-container-max mx-auto relative z-10">
+<div class="flex flex-col gap-4">
+<span class="font-label-technical text-label-technical text-primary uppercase tracking-[0.2em]">GCP Cloud Infrastructure Architecture</span>
+<h1 class="font-display-lg text-display-lg text-primary max-w-4xl leading-tight">
+          GCS Storage Bucket & <br>
+<span class="text-on-surface">Custom Domain Hosting</span>
+</h1>
+<div class="w-24 h-1 bg-primary mt-4"></div>
+</div>
+</div>
+</section>
+<!-- Description Section -->
+<section class="px-margin-desktop py-stack-lg" id="overview">
+<div class="max-w-container-max mx-auto">
+<div class="bg-surface-container-lowest rounded-[32px] p-12 flex flex-col lg:flex-row items-center gap-16 shadow-[0_8px_40px_rgba(0,0,0,0.02)]" style="transform: translateY(0px);">
+<!-- Left Content -->
+<div class="flex-1 min-w-0">
+<h2 class="font-headline-lg text-headline-lg text-on-surface mb-8">System Overview</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-12 max-w-xl">
+            Google Cloud Storage(GCS) 버킷을 활용하여 고성능 정적 웹사이트를 호스팅하고, Cloud Load Balancer와 Google-Managed SSL을 조합하여 커스텀 도메인(HTTPS)을 보안성 있게 연결합니다.
+          </p>
+<div class="grid grid-cols-1 gap-6">
+<div class="flex items-start gap-6 p-6 rounded-2xl bg-surface-container-low transition-all hover:bg-surface-container">
+<div class="w-12 h-12 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-on-primary">public</span>
+</div>
+<div class="min-w-0">
+<h4 class="font-headline-md text-body-lg font-semibold text-on-surface">Static Website Hosting</h4>
+<p class="font-body-md text-on-surface-variant">GCS 버킷의 `MainPageSuffix(index.html)` 및 `NotFoundPage(404.html)` 설정으로 정적 자원을 안정적으로 서빙합니다.</p>
+</div>
+</div>
+<div class="flex items-start gap-6 p-6 rounded-2xl bg-surface-container-low transition-all hover:bg-surface-container">
+<div class="w-12 h-12 rounded-xl bg-tertiary-container flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-on-tertiary-container">lock</span>
+</div>
+<div class="min-w-0">
+<h4 class="font-headline-md text-body-lg font-semibold text-on-surface">Google-Managed SSL & HTTPS</h4>
+<p class="font-body-md text-on-surface-variant">Target HTTPS Proxy 및 Google 관리형 인증서를 통한 자동 갱신 및 보안 연결을 제공합니다.</p>
+</div>
+</div>
+<div class="flex items-start gap-6 p-6 rounded-2xl bg-surface-container-low transition-all hover:bg-surface-container">
+<div class="w-12 h-12 rounded-xl bg-secondary-container flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-on-secondary-container">speed</span>
+</div>
+<div class="min-w-0">
+<h4 class="font-headline-md text-body-lg font-semibold text-on-surface">Cloud CDN Acceleration</h4>
+<p class="font-body-md text-on-surface-variant">Backend Bucket에 Cloud CDN을 활성화하여 전 세계 GCP 엣지 로케이션에서 고속 렌더링을 지원합니다.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Visual -->
+<div class="flex-1 w-full max-w-[500px] relative">
+<div class="relative z-10 aspect-square rounded-[2rem] bg-slate-900 p-8 text-slate-200 flex flex-col justify-between shadow-2xl border border-slate-700">
+<div class="flex justify-between items-center border-b border-slate-800 pb-4">
+    <span class="font-mono text-xs text-blue-400">gcs-custom-domain</span>
+    <span class="inline-block w-3 h-3 rounded-full bg-emerald-500"></span>
+</div>
+<div class="space-y-4 my-auto font-mono text-sm">
+    <div class="p-3 bg-slate-800/80 rounded-lg border border-slate-700">1. Client Request → DNS (A Record)</div>
+    <div class="p-3 bg-slate-800/80 rounded-lg border border-slate-700">2. Global External Load Balancer</div>
+    <div class="p-3 bg-slate-800/80 rounded-lg border border-slate-700">3. Managed SSL Termination (HTTPS)</div>
+    <div class="p-3 bg-slate-800/80 rounded-lg border border-slate-700">4. GCS Backend Bucket (Cloud CDN)</div>
+</div>
+<div class="text-xs text-slate-500 font-mono text-right">Status: 200 OK</div>
+</div>
+<div class="absolute -inset-4 bg-primary/10 blur-[100px] -z-10 rounded-full"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- Technical Architecture Section -->
+<section class="px-margin-desktop py-32 bg-surface-container-low/50" id="technical-architecture">
+<div class="max-w-container-max mx-auto">
+<div class="flex flex-col items-center text-center mb-16">
+<h2 class="font-headline-lg text-headline-lg text-on-surface mb-4">Technical Architecture Flow</h2>
+<p class="font-body-md text-on-surface-variant max-w-2xl">Cloud DNS부터 Cloud Load Balancer, SSL Certificate, Backend Bucket 및 GCS Storage Bucket까지 연결되는 전체 트래픽 플로우입니다.</p>
+</div>
+<div class="bg-surface-container-lowest p-8 rounded-[40px] shadow-sm relative overflow-hidden group">
+<div class="grid grid-cols-1 md:grid-cols-5 gap-4 text-center">
+    <div class="p-6 bg-slate-100 rounded-2xl border border-slate-200">
+        <span class="material-symbols-outlined text-3xl text-blue-600 mb-2">language</span>
+        <h4 class="font-bold text-slate-800">Cloud DNS</h4>
+        <p class="text-xs text-slate-500 mt-2">커스텀 도메인을 IP로 해소 (A Record)</p>
+    </div>
+    <div class="p-6 bg-slate-100 rounded-2xl border border-slate-200">
+        <span class="material-symbols-outlined text-3xl text-indigo-600 mb-2">alt_route</span>
+        <h4 class="font-bold text-slate-800">Forwarding Rule</h4>
+        <p class="text-xs text-slate-500 mt-2">외부 IP 80/443 포트 수신 및 룰 전달</p>
+    </div>
+    <div class="p-6 bg-slate-100 rounded-2xl border border-slate-200">
+        <span class="material-symbols-outlined text-3xl text-emerald-600 mb-2">verified_user</span>
+        <h4 class="font-bold text-slate-800">Target HTTPS Proxy</h4>
+        <p class="text-xs text-slate-500 mt-2">Google SSL 인증서 해제 및 HTTP(S) 처리</p>
+    </div>
+    <div class="p-6 bg-slate-100 rounded-2xl border border-slate-200">
+        <span class="material-symbols-outlined text-3xl text-amber-600 mb-2">speed</span>
+        <h4 class="font-bold text-slate-800">Backend Bucket</h4>
+        <p class="text-xs text-slate-500 mt-2">Cloud CDN 캐싱 및 Storage 버킷 연결</p>
+    </div>
+    <div class="p-6 bg-slate-100 rounded-2xl border border-slate-200">
+        <span class="material-symbols-outlined text-3xl text-rose-600 mb-2">inventory_2</span>
+        <h4 class="font-bold text-slate-800">GCS Bucket</h4>
+        <p class="text-xs text-slate-500 mt-2">index.html / 404.html 정적 소스 보관</p>
+    </div>
+</div>
+</div>
+</div>
+</section>
+<!-- Key Features Section -->
+<section class="px-margin-desktop py-32" id="features">
+<div class="max-w-container-max mx-auto">
+<div class="flex justify-between items-end mb-16">
+<div class="flex flex-col gap-2">
+<span class="font-label-technical text-label-technical text-primary uppercase">Advantages</span>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Key Architecture Features</h2>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<!-- Card 1 -->
+<div class="flex flex-col h-full bg-surface-container-lowest rounded-[32px] p-10 shadow-sm border-b-4 border-primary">
+<div class="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-8">
+<span class="material-symbols-outlined text-primary text-3xl">bolt</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-4">Zero Server Maintenance</h3>
+<p class="font-body-md text-on-surface-variant flex-grow">별도의 웹 서버(Nginx, Apache 등) 인스턴스를 관리할 필요 없이 Storage Bucket 기반 서빙으로 99.99% 가용성을 보장합니다.</p>
+</div>
+<!-- Card 2 -->
+<div class="flex flex-col h-full bg-surface-container-lowest rounded-[32px] p-10 shadow-sm border-b-4 border-tertiary">
+<div class="w-16 h-16 bg-tertiary-container/20 rounded-2xl flex items-center justify-center mb-8">
+<span class="material-symbols-outlined text-tertiary text-3xl">attach_money</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-4">Cost Efficiency</h3>
+<p class="font-body-md text-on-surface-variant flex-grow">유지 비용이 매우 저렴한 GCS 객체 스토리지 비용과 CDN 트래픽 비용만 발생하여 연중 최고 수준의 인프라 효율성을 자랑합니다.</p>
+</div>
+<!-- Card 3 -->
+<div class="flex flex-col h-full bg-surface-container-lowest rounded-[32px] p-10 shadow-sm border-b-4 border-secondary">
+<div class="w-16 h-16 bg-secondary-container/20 rounded-2xl flex items-center justify-center mb-8">
+<span class="material-symbols-outlined text-secondary text-3xl">shield</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-4">Automated Security</h3>
+<p class="font-body-md text-on-surface-variant flex-grow">Google-Managed SSL Certificate가 적용되어 인증서 주기적 갱신을 수동으로 작업할 필요가 없습니다.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Code Samples Section -->
+<section class="px-margin-desktop pb-24" id="code-samples"><div class="max-w-container-max mx-auto"><div class="flex flex-col items-center text-center mb-16"><span class="font-label-technical text-label-technical text-primary uppercase tracking-[0.2em] mb-2">Terraform Code Examples</span><h2 class="font-headline-lg text-headline-lg text-on-surface">IaC Configuration Snippets</h2></div><div class="grid grid-cols-1 md:grid-cols-2 gap-8"><div class="bg-surface-container-lowest rounded-3xl p-8 border border-outline-variant/30 shadow-sm"><h4 class="font-headline-md text-body-lg font-semibold text-on-surface mb-4">GCS Website Bucket Block</h4><pre class="bg-slate-950 text-slate-100 p-4 rounded-xl font-mono text-xs overflow-x-auto"><code>resource "google_storage_bucket" "website" {
+  name          = var.domain_name
+  location      = "US"
+  force_destroy = true
+
+  website {
+    main_page_suffix = "index.html"
+    not_found_page   = "404.html"
+  }
+}</code></pre></div><div class="bg-surface-container-lowest rounded-3xl p-8 border border-outline-variant/30 shadow-sm"><h4 class="font-headline-md text-body-lg font-semibold text-on-surface mb-4">Backend Bucket & Cloud CDN</h4><pre class="bg-slate-950 text-slate-100 p-4 rounded-xl font-mono text-xs overflow-x-auto"><code>resource "google_compute_backend_bucket" "website_backend" {
+  name        = "website-backend"
+  bucket_name = google_storage_bucket.website.name
+  enable_cdn  = true
+}</code></pre></div></div></div></section>
+<!-- Navigation Pill (Fixed Bottom) -->
+<div class="fixed bottom-8 left-1/2 -translate-x-1/2 z-40">
+<div class="bg-surface-container-lowest/70 backdrop-blur-2xl px-8 py-4 rounded-full shadow-2xl flex items-center gap-8">
+<a class="font-label-technical text-label-technical text-primary font-bold" href="#home">HOME</a>
+<a class="font-label-technical text-label-technical text-on-surface-variant hover:text-primary transition-colors" href="#overview">OVERVIEW</a>
+<a class="font-label-technical text-label-technical text-on-surface-variant hover:text-primary transition-colors" href="#technical-architecture">SYSTEM</a>
+<a class="font-label-technical text-label-technical text-on-surface-variant hover:text-primary transition-colors" href="#features">FEATURES</a>
+</div>
+</div>
+</div>
+<script>
+  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+      e.preventDefault();
+      document.querySelector(this.getAttribute('href')).scrollIntoView({
+        behavior: 'smooth'
+      });
+    });
+  });
+</script></main><footer class="mt-stack-lg py-16 bg-surface-container-low"><div class="max-w-container-max mx-auto px-margin-desktop flex flex-col md:flex-row items-center justify-between gap-stack-md"><div class="flex flex-col gap-2"><span class="font-headline-md text-headline-md text-on-surface">GCP Storage & Custom Domain Hosting</span><span class="text-body-md text-on-surface-variant">Cloud Storage, CDN & Custom Domain Architecture Guide</span></div><div class="flex items-center gap-8"><a href="/" class="bg-inverse-surface text-primary font-semibold py-3 px-8 rounded-full">Return Home</a></div></div><div class="max-w-container-max mx-auto px-margin-desktop mt-12 pt-8 border-t border-outline-variant/30 text-label-technical text-on-surface-variant/60">© 2026 GCP CUSTOM DOMAIN HOSTING PORTAL. ALL RIGHTS RESERVED.</div></footer>
+</body></html>
