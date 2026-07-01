@@ -31,6 +31,7 @@ resource "google_storage_bucket_object" "content" {
   name   = each.value
   bucket = google_storage_bucket.website.name
   source = "${path.module}/website_content/${each.value}"
+  detect_md5hash = filemd5("${path.module}/website_content/${each.value}")
 
   # Automatically set Content-Type for proper browser rendering
   content_type = lookup({
