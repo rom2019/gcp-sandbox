@@ -1,0 +1,190 @@
+<!DOCTYPE html><html lang="en" style=""><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0" name="viewport"><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&amp;family=Hanken+Grotesk:wght@500&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;background: radial-gradient(circle at 50% -20%, #ffdbc8 0%, #f8f9fa 40%);min-height:100vh;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script>tailwind.config={theme:{extend:{colors:{"secondary":"#0058bb","on-tertiary-container":"#3d2700","tertiary-fixed-dim":"#ffba45","on-background":"#191c1d","primary-container":"#e8710a","on-surface-variant":"#574236","on-primary":"#ffffff","surface-container-low":"#f3f4f5","surface-dim":"#d9dadb","tertiary-fixed":"#ffddb0","on-error":"#ffffff","surface-container":"#edeeef","on-secondary-container":"#fefcff","surface":"#f8f9fa","surface-container-highest":"#e1e3e4","outline-variant":"#dec1b0","secondary-container":"#1471e6","on-primary-container":"#4a1f00","surface-container-high":"#e7e8e9","primary-fixed-dim":"#ffb68a","on-surface":"#191c1d","on-tertiary":"#ffffff","on-primary-fixed-variant":"#743500","on-tertiary-fixed":"#281800","surface-tint":"#994700","on-primary-fixed":"#321300","primary-fixed":"#ffdbc8","on-error-container":"#93000a","primary":"#994700","secondary-fixed":"#d8e2ff","on-tertiary-fixed-variant":"#614000","surface-container-lowest":"#ffffff","on-secondary-fixed":"#001a41","error-container":"#ffdad6","secondary-fixed-dim":"#adc7ff","inverse-surface":"#2e3132","inverse-on-surface":"#f0f1f2","outline":"#8b7264","on-secondary":"#ffffff","surface-bright":"#f8f9fa","on-secondary-fixed-variant":"#004493","background":"#f8f9fa","tertiary-container":"#c58600","inverse-primary":"#ffb68a","tertiary":"#805600","error":"#ba1a1a","surface-variant":"#e1e3e4"},borderRadius:{DEFAULT:"0.25rem",lg:"0.5rem",xl:"0.75rem",full:"9999px"},spacing:{"stack-lg":"32px","margin-desktop":"40px","margin-mobile":"16px","stack-md":"16px","container-max":"1280px","gutter":"24px","stack-sm":"8px"},fontFamily:{"headline-lg":["Plus Jakarta Sans"],"body-md":["Plus Jakarta Sans"],"body-lg":["Plus Jakarta Sans"],"headline-md":["Plus Jakarta Sans"],"display-lg":["Plus Jakarta Sans"],"label-technical":["Hanken Grotesk"]},fontSize:{"headline-lg":["32px",{lineHeight:"1.3",fontWeight:"600"}],"body-md":["14px",{lineHeight:"1.6",fontWeight:"400"}],"body-lg":["18px",{lineHeight:"1.6",fontWeight:"400"}],"headline-md":["24px",{lineHeight:"1.4",fontWeight:"500"}],"display-lg":["48px",{lineHeight:"1.2",letterSpacing:"-0.02em",fontWeight:"600"}],"label-technical":["12px",{lineHeight:"1",letterSpacing:"0.05em",fontWeight:"500"}]}}}}</script></head><body class="font-body-md text-on-surface antialiased"><header class="fixed top-0 left-0 right-0 z-50 pt-6 px-margin-desktop"><div class="max-w-container-max mx-auto flex items-center justify-between h-16 bg-surface-container-lowest/40 backdrop-blur-xl border border-white/20 rounded-full px-8 shadow-[0_4px_30px_rgba(0,0,0,0.03)]"><div class="flex items-center gap-4"><div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[20px]">auto_awesome</span></div><span class="font-headline-md text-headline-md text-on-surface">SQL Agent</span></div>
+  <nav class="hidden md:flex items-center gap-10" data-active-classes="text-primary font-semibold">
+  <!-- href="#"을 본문 각 섹션의 id명(#home, #description 등)으로 완벽하게 매칭했습니다. -->
+  <a aria-current="page" class="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md text-primary font-semibold" data-path="home" href="#home">Home</a>
+  <a class="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md" data-path="description" href="#description">Description</a>
+  <a class="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md" data-path="technical-architecture" href="#technical-architecture">Technical Architecture</a>
+  <a class="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md" data-path="usecases" href="#usecases">Usecases</a>
+  <a class="text-on-surface-variant hover:text-on-surface transition-colors font-body-md text-body-md" data-path="prompts" href="#prompts">Prompt Samples</a>
+</nav>
+  <div class="flex items-center gap-6"><button class="bg-inverse-surface text-primary font-semibold py-2.5 px-6 rounded-full text-body-md hover:bg-on-background transition-all">GitHub</button><span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-error">close</span></div></div></header><main class="pt-16"><div class="flex flex-col w-full relative">
+<!-- Top Title Section -->
+<section class="px-margin-desktop py-24 relative overflow-hidden" id="home">
+<div class="max-w-container-max mx-auto relative z-10">
+<div class="flex flex-col gap-4">
+<span class="font-label-technical text-label-technical text-primary uppercase tracking-[0.2em]">Data Engine Intelligence</span>
+<h1 class="font-display-lg text-display-lg text-primary max-w-4xl leading-tight">
+          BigQuery SQL Optimization <br>
+<span class="text-on-surface">Agent Portfolio</span>
+</h1>
+<div class="w-24 h-1 bg-primary mt-4"></div>
+</div>
+</div>
+<!-- Subtle Background Decoration -->
+
+</section>
+<!-- Agent Description Section -->
+<section class="px-margin-desktop py-stack-lg" id="description">
+<div class="max-w-container-max mx-auto">
+<div class="bg-surface-container-lowest rounded-[32px] p-12 flex flex-col lg:flex-row items-center gap-16 shadow-[0_8px_40px_rgba(0,0,0,0.02)]" style="transform: translateY(0px);">
+<!-- Left Content -->
+<div class="flex-1 min-w-0">
+<h2 class="font-headline-lg text-headline-lg text-on-surface mb-8">Agent Description</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-12 max-w-xl">
+            A high-performance neural engine designed to refactor complex BigQuery workloads. This agent autonomously identifies bottlenecks, suggests partition strategies, and reduces compute costs by up to 40%.
+          </p>
+<div class="grid grid-cols-1 gap-6">
+<div class="flex items-start gap-6 p-6 rounded-2xl bg-surface-container-low transition-all hover:bg-surface-container">
+<div class="w-12 h-12 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-on-primary">bolt</span>
+</div>
+<div class="min-w-0">
+<h4 class="font-headline-md text-body-lg font-semibold text-on-surface">Automation</h4>
+<p class="font-body-md text-on-surface-variant">Continuous query monitoring and automated refactoring pipelines.</p>
+</div>
+</div>
+<div class="flex items-start gap-6 p-6 rounded-2xl bg-surface-container-low transition-all hover:bg-surface-container">
+<div class="w-12 h-12 rounded-xl bg-tertiary-container flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-on-tertiary-container">hub</span>
+</div>
+<div class="min-w-0">
+<h4 class="font-headline-md text-body-lg font-semibold text-on-surface">Integration</h4>
+<p class="font-body-md text-on-surface-variant">Seamlessly hooks into GCP Logging and CI/CD for instant optimization.</p>
+</div>
+</div>
+<div class="flex items-start gap-6 p-6 rounded-2xl bg-surface-container-low transition-all hover:bg-surface-container">
+<div class="w-12 h-12 rounded-xl bg-secondary-container flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-on-secondary-container">query_stats</span>
+</div>
+<div class="min-w-0">
+<h4 class="font-headline-md text-body-lg font-semibold text-on-surface">Insights</h4>
+<p class="font-body-md text-on-surface-variant">Deep-dive cost attribution and slot utilization heatmaps.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Content: 3D Agent Visual -->
+<div class="flex-1 w-full max-w-[500px] relative">
+<div class="relative z-10 aspect-square rounded-[2rem] overflow-hidden shadow-2xl">
+<img alt="3D Agent Visual" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCUTC-38okUJloTkzB1MhrV9neQfLUIIMSm-FRtH08Jo7OG_8fJloumf-zpveaB2jeTGLdIcOliIJhlV7rA_xptExO40cMGRwlwiWLH-0isn6_XSM0gMsyQAvO5gNu73AhEUunxcBhNW2Fsb9oDSa1U8xWKp46i9bU-55Oh5VQ91XP2DJf9UTh64yAzXlRTrMWnXRt_ZpxGmBVXvWiKiehthXXruAXqIVKBXbsyludUDxqwRie4qTB2ag">
+</div>
+<!-- Ambient Glow -->
+<div class="absolute -inset-4 bg-primary/10 blur-[100px] -z-10 rounded-full"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- Technical Architecture Section -->
+<section class="px-margin-desktop py-32 bg-surface-container-low/50" id="technical-architecture">
+<div class="max-w-container-max mx-auto">
+<div class="flex flex-col items-center text-center mb-16">
+<h2 class="font-headline-lg text-headline-lg text-on-surface mb-4">Technical Architecture</h2>
+<p class="font-body-md text-on-surface-variant max-w-2xl">A distributed system built on cloud-native primitives, leveraging LLM reasoning for SQL semantic analysis.</p>
+</div>
+<div class="bg-surface-container-lowest p-8 rounded-[40px] shadow-sm relative overflow-hidden group" style="transform: translateY(-10px);">
+<img alt="Architecture Diagram" class="w-full h-auto rounded-3xl transition-transform duration-700 group-hover:scale-[1.01]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBM5MN1p6Jf6yKLeyQOktOiCZInDMkKabwLuMknmt-Ba42gkwRMDYwW84WHPtLB3uTFhQrTGYta8WtKT3PGzEL3ky3tF5-iCUONgi-hdjPK5vyvVFXGW86df-X2I9Gzzf_VFpQk9vrmKfaXw1Dx75rGkjcR7a1HHGlm78h9iFPr1cqklG1ok2pVJ3-sr2WURKFNJGel9YMT_UwA8_5ocjJwhA5BBh8u16YpN6FrCIDSHrQdJ9K_8yZcZA">
+<!-- Interactive Detail Overlay (Visual Only) -->
+<div class="absolute top-8 right-8 flex gap-2">
+<span class="bg-primary/10 text-primary px-4 py-1.5 rounded-full text-label-technical font-bold uppercase tracking-wider">High Fidelity</span>
+<span class="bg-secondary/10 text-secondary px-4 py-1.5 rounded-full text-label-technical font-bold uppercase tracking-wider">Cloud Native</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Usecases Section -->
+<section class="px-margin-desktop py-32" id="usecases">
+<div class="max-w-container-max mx-auto">
+<div class="flex justify-between items-end mb-16">
+<div class="flex flex-col gap-2">
+<span class="font-label-technical text-label-technical text-primary uppercase">Business Impact</span>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Optimization Usecases</h2>
+</div>
+<button class="bg-inverse-surface text-primary font-semibold py-3 px-10 rounded-full text-body-md hover:scale-105 transition-transform active:scale-95">Get Started</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<!-- Card 1: Performance Tuning -->
+<div class="flex flex-col h-full bg-surface-container-lowest rounded-[32px] p-10 shadow-sm hover:shadow-xl transition-all duration-500 group border-b-4 border-transparent hover:border-primary">
+<div class="w-16 h-16 bg-primary/5 rounded-2xl flex items-center justify-center mb-8 group-hover:bg-primary transition-colors">
+<span class="material-symbols-outlined text-primary group-hover:text-on-primary text-3xl">speed</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-4">Performance Tuning</h3>
+<p class="font-body-md text-on-surface-variant mb-12 flex-grow">Eliminate full table scans and redundant joins. The agent rewrites queries to utilize clustering and partitioning effectively.</p>
+<div class="h-48 w-full bg-surface-container rounded-2xl overflow-hidden relative">
+<div class="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4 flex flex-col gap-2">
+<div class="h-2 w-2/3 bg-primary/20 rounded-full"></div>
+<div class="h-2 w-full bg-primary/40 rounded-full"></div>
+<div class="h-2 w-1/2 bg-primary/20 rounded-full"></div>
+</div>
+</div>
+</div>
+<!-- Card 2: Cost Management -->
+<div class="flex flex-col h-full bg-surface-container-lowest rounded-[32px] p-10 shadow-sm hover:shadow-xl transition-all duration-500 group border-b-4 border-transparent hover:border-tertiary">
+<div class="w-16 h-16 bg-tertiary-container/10 rounded-2xl flex items-center justify-center mb-8 group-hover:bg-tertiary transition-colors">
+<span class="material-symbols-outlined text-tertiary group-hover:text-on-tertiary text-3xl">account_balance_wallet</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-4">Cost Management</h3>
+<p class="font-body-md text-on-surface-variant mb-12 flex-grow">Monitor daily slot consumption. Predict monthly spend and flag "expensive" queries before they finish execution.</p>
+<div class="h-48 w-full bg-surface-container rounded-2xl overflow-hidden relative">
+<div class="absolute inset-0 bg-gradient-to-br from-tertiary/10 to-transparent"></div>
+<div class="absolute inset-0 flex items-center justify-center">
+<span class="font-display-lg text-[64px] text-tertiary/10">-40%</span>
+</div>
+</div>
+</div>
+<!-- Card 3: Query Compliance -->
+<div class="flex flex-col h-full bg-surface-container-lowest rounded-[32px] p-10 shadow-sm hover:shadow-xl transition-all duration-500 group border-b-4 border-transparent hover:border-secondary">
+<div class="w-16 h-16 bg-secondary-container/10 rounded-2xl flex items-center justify-center mb-8 group-hover:bg-secondary transition-colors">
+<span class="material-symbols-outlined text-secondary group-hover:text-on-secondary text-3xl">gavel</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-4">Query Compliance</h3>
+<p class="font-body-md text-on-surface-variant mb-12 flex-grow">Ensure PII masking and access control logic are never bypassed. Enforce organizational SQL best practices automatically.</p>
+<div class="h-48 w-full bg-surface-container rounded-2xl overflow-hidden relative">
+<div class="absolute inset-0 bg-gradient-to-br from-secondary/10 to-transparent"></div>
+<div class="absolute inset-0 flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary/20 text-7xl">verified_user</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- CTA / Bottom Section -->
+<section class="px-margin-desktop pb-24" id="prompts"><div class="max-w-container-max mx-auto"><div class="flex flex-col items-center text-center mb-16"><span class="font-label-technical text-label-technical text-primary uppercase tracking-[0.2em] mb-2">Optimization Examples</span><h2 class="font-headline-lg text-headline-lg text-on-surface">Prompt Samples</h2></div><div class="grid grid-cols-1 md:grid-cols-2 gap-8"><div class="bg-surface-container-lowest rounded-3xl p-8 border border-outline-variant/30 shadow-sm hover:shadow-md transition-all" style="transform: translateY(0px);"><h4 class="font-headline-md text-body-lg font-semibold text-on-surface mb-4">Partitioning Strategy</h4><div class="bg-surface-container-low p-4 rounded-xl font-label-technical text-on-surface-variant/80 border border-outline-variant/20">"Analyze the following query and suggest a partitioning strategy for the 'events' table based on the timestamp column to reduce slot consumption by at least 30%."</div></div><div class="bg-surface-container-lowest rounded-3xl p-8 border border-outline-variant/30 shadow-sm hover:shadow-md transition-all"><h4 class="font-headline-md text-body-lg font-semibold text-on-surface mb-4">Join Optimization</h4><div class="bg-surface-container-low p-4 rounded-xl font-label-technical text-on-surface-variant/80 border border-outline-variant/20">"Refactor this multi-stage join to utilize broadcast joins where applicable and eliminate redundant subqueries in the CTE block."</div></div><div class="bg-surface-container-lowest rounded-3xl p-8 border border-outline-variant/30 shadow-sm hover:shadow-md transition-all"><h4 class="font-headline-md text-body-lg font-semibold text-on-surface mb-4">PII Masking</h4><div class="bg-surface-container-low p-4 rounded-xl font-label-technical text-on-surface-variant/80 border border-outline-variant/20">"Rewrite the SELECT statement to automatically apply SHA256 hashing to any columns tagged as 'sensitive' in the Data Catalog metadata."</div></div><div class="bg-surface-container-lowest rounded-3xl p-8 border border-outline-variant/30 shadow-sm hover:shadow-md transition-all"><h4 class="font-headline-md text-body-lg font-semibold text-on-surface mb-4">Cost Estimation</h4><div class="bg-surface-container-low p-4 rounded-xl font-label-technical text-on-surface-variant/80 border border-outline-variant/20">"Calculate the dry-run cost of this query and suggest three alternative syntax structures that would result in lower bytes billed."</div></div></div></div></section>
+<!-- Navigation Pill (Fixed Bottom) -->
+<div class="fixed bottom-8 left-1/2 -translate-x-1/2 z-40">
+<div class="bg-surface-container-lowest/70 backdrop-blur-2xl px-8 py-4 rounded-full shadow-2xl flex items-center gap-8">
+<a class="font-label-technical text-label-technical text-primary font-bold" href="#home">HOME</a>
+<a class="font-label-technical text-label-technical text-on-surface-variant hover:text-primary transition-colors" href="#description">AGENT</a>
+<a class="font-label-technical text-label-technical text-on-surface-variant hover:text-primary transition-colors" href="#technical-architecture">SYSTEM</a>
+<a class="font-label-technical text-label-technical text-on-surface-variant hover:text-primary transition-colors" href="#usecases">USECASES</a>
+</div>
+</div>
+</div>
+<script>
+  // Simple scroll spy and smooth scroll
+  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+      e.preventDefault();
+      document.querySelector(this.getAttribute('href')).scrollIntoView({
+        behavior: 'smooth'
+      });
+    });
+  });
+
+  // Hover animations for cards
+  const cards = document.querySelectorAll('.bg-surface-container-lowest');
+  cards.forEach(card => {
+    card.addEventListener('mouseenter', () => {
+        card.style.transform = 'translateY(-10px)';
+    });
+    card.addEventListener('mouseleave', () => {
+        card.style.transform = 'translateY(0)';
+    });
+  });
+</script></main><footer class="mt-stack-lg py-16 bg-surface-container-low"><div class="max-w-container-max mx-auto px-margin-desktop flex flex-col md:flex-row items-center justify-between gap-stack-md"><div class="flex flex-col gap-2"><span class="font-headline-md text-headline-md text-on-surface">SQL Optimization Agent</span><span class="text-body-md text-on-surface-variant">High-fidelity technical portfolio for BigQuery agents.</span></div><div class="flex items-center gap-8"><button class="bg-inverse-surface text-primary font-semibold py-3 px-8 rounded-full">Get in Touch</button></div></div><div class="max-w-container-max mx-auto px-margin-desktop mt-12 pt-8 border-t border-outline-variant/30 text-label-technical text-on-surface-variant/60">© 2024 AGENT PORTFOLIO. ALL RIGHTS RESERVED.</div></footer>
+
+
+
+</body></html>

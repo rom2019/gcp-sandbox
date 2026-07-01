@@ -1,0 +1,8 @@
+# Example terraform.tfvars
+# Copy this file to `terraform.tfvars` and replace values matching your GCP environment.
+
+project_id  = "REPLACE-ME-PROJECT-ID"       # e.g. "my-gcp-project-id"
+region      = "asia-northeast3"             # GCP Region
+domain_name = "REPLACE-ME-DOMAIN-NAME"      # e.g. "docs.yourdomain.com"
+bucket_name = "REPLACE-ME-BUCKET-NAME"      # e.g. "public-docs-yourdomain-com"
+enable_cdn  = true
