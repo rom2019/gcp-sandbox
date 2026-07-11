@@ -1,20 +1,21 @@
 variable "project_id" {
-  description = "The GCP Project ID to deploy resources into."
+  description = "리소스가 배포될 GCP 프로젝트 ID"
   type        = string
 }
 
 variable "region" {
-  description = "The GCP region for regional resources."
+  description = "리전 리소스가 생성될 GCP 리전"
   type        = string
   default     = "asia-northeast3"
 }
 
 variable "bucket_name" {
-  description = "The name of the GCS bucket to create. Must be globally unique."
+  description = "생성할 GCS 버킷 이름 (전역적으로 유일해야 함)"
   type        = string
 }
 
 variable "github_repo" {
-  description = "The GitHub repository in 'owner/repo' format (e.g., 'myuser/myrepo')."
+  description = "GitHub 리포지토리 이름 ('owner/repo' 형식)"
   type        = string
 }
+

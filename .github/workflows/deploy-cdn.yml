@@ -1,4 +1,4 @@
-name: Deploy Static Web to GCS and Invalidate Cloud CDN
+name: GCS 및 Cloud CDN 정적 웹사이트 자동 배포
 
 on:
   push:
@@ -10,35 +10,36 @@ on:
 
 permissions:
   contents: read
-  id-token: write
+  id-token: write # Workload Identity Federation 인증에 필요
 
 jobs:
   deploy:
-    name: Deploy to GCS & Cloud CDN
+    name: GCS 업로드 및 Cloud CDN 캐시 무효화
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: 소스코드 체크아웃
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
+      - name: Google Cloud 인증 (WIF)
         id: auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: 'projects/1010705724520/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
           service_account: 'github-deployer@agentspace-451402.iam.gserviceaccount.com'
 
-      - name: Upload Static Files to GCS
+      - name: GCS 버킷으로 정적 파일 업로드
         uses: google-github-actions/upload-cloud-storage@v2
         with:
           path: 'networking/github-to-gcs-cdn-deployer/public'
           destination: 'rom2019-gcp-sandbox-static-web'
           parent: false
 
-      - name: Set up Cloud SDK
+      - name: Cloud SDK 설정
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Invalidate Cloud CDN Cache
+      - name: Cloud CDN 캐시 전체 무효화
         run: |
           gcloud compute url-maps invalidate-cdn-cache website-url-map \
             --path="/*" \
             --async
+

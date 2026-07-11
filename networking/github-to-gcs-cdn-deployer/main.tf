@@ -13,11 +13,11 @@ provider "google" {
   region  = var.region
 }
 
-# 1. Workload Identity Federation
+# 1. Workload Identity Federation (WIF) 구성
 resource "google_iam_workload_identity_pool" "pool" {
   workload_identity_pool_id = "github-pool"
   display_name              = "GitHub Pool"
-  description               = "Identity pool for GitHub Actions"
+  description               = "GitHub Actions 인증용 Identity Pool"
 }
 
 resource "google_iam_workload_identity_pool_provider" "provider" {
@@ -35,20 +35,20 @@ resource "google_iam_workload_identity_pool_provider" "provider" {
   }
 }
 
-# 2. Service Account for Deployment
+# 2. 배포용 서비스 계정 (Service Account)
 resource "google_service_account" "sa" {
   account_id   = "github-deployer"
   display_name = "GitHub Deployer Service Account"
 }
 
-# Allow GitHub Actions to assume the Service Account
+# GitHub Actions가 서비스 계정 역할을 수임할 수 있도록 IAM 권한 바인딩
 resource "google_service_account_iam_member" "wif_binding" {
   service_account_id = google_service_account.sa.name
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.pool.name}/attribute.repository/${var.github_repo}"
 }
 
-# 3. GCS Bucket for Website Content
+# 3. 웹사이트 정적 파일 호스팅용 GCS 버킷
 resource "google_storage_bucket" "website" {
   name          = var.bucket_name
   location      = var.region
@@ -60,28 +60,28 @@ resource "google_storage_bucket" "website" {
   }
 }
 
-# Allow public access to the GCS bucket objects
+# GCS 버킷 개체에 대한 공개(Public) 읽기 권한 부여
 resource "google_storage_bucket_iam_member" "public_rule" {
   bucket = google_storage_bucket.website.name
   role   = "roles/storage.objectViewer"
   member = "allUsers"
 }
 
-# Grant SA permissions to write to the GCS bucket
+# 서비스 계정에 GCS 버킷 쓰기 및 관리 권한 부여
 resource "google_storage_bucket_iam_member" "sa_gcs_write" {
   bucket = google_storage_bucket.website.name
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.sa.email}"
 }
 
-# Grant SA permissions to invalidate CDN cache
+# 서비스 계정에 Cloud CDN 캐시 무효화 권한 부여
 resource "google_project_iam_member" "sa_lb_admin" {
   project = var.project_id
   role    = "roles/compute.loadBalancerAdmin"
   member  = "serviceAccount:${google_service_account.sa.email}"
 }
 
-# 4. Load Balancer and CDN Configuration
+# 4. 글로벌 외부 HTTP 로드밸런서 및 Cloud CDN 설정
 resource "google_compute_global_address" "default" {
   name = "website-lb-ip"
 }
