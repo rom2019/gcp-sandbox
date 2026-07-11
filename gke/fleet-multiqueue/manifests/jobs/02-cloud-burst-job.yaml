@@ -1,0 +1,29 @@
+# ==============================================================================
+# Manifest: 02-cloud-burst-job.yaml
+# Description: 온프레미스 GPU 쿼터 소진 시 클라우드 GKE로 원격 디스패치되는 AI 배치 Job
+# ==============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cloud-burst-ai-simulation-02
+  namespace: default
+  labels:
+    kueue.x-k8s.io/queue-name: user-ai-queue # Kueue LocalQueue 지정
+spec:
+  parallelism: 2 # 추가 4개 Mock GPU 필요 -> 온프레미스 쿼터 소진으로 클라우드로 버스팅 대상
+  completions: 2
+  suspend: true  # Kueue 관락용 suspended 상태 주입
+  template:
+    spec:
+      containers:
+      - name: mock-ai-trainer-burst
+        image: python:3.9-slim
+        command: ["python", "-c", "import time; print('Executing Cloud Burst AI Batch Simulation via MultiKueue...'); time.sleep(90)"]
+        resources:
+          requests:
+            example.com/mock-gpu: "2"
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            example.com/mock-gpu: "2"
+      restartPolicy: Never

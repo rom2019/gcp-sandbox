@@ -1,0 +1,34 @@
+# ==============================================================================
+# Manifest: 01-multikueue-cluster.yaml
+# Description: 온프레미스 매니저 클러스터에 원격 GKE Cloud Worker 클러스터를 연결하는 MultiKueue 정의
+# ==============================================================================
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: MultiKueueCluster
+metadata:
+  name: cloud-worker-cluster
+spec:
+  # 원격 클라우드 클러스터 접속 정보가 담긴 Secret 참조
+  kubeConfig:
+    location: cloud-worker-kubeconfig
+    locationType: Secret
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: MultiKueueConfig
+metadata:
+  name: multikueue-config
+spec:
+  # 원격 디스패치 타겟 클러스터 목록 지정
+  clusters:
+    - cloud-worker-cluster
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: AdmissionCheck
+metadata:
+  name: multikueue-check
+spec:
+  # Kueue의 MultiKueue 컨트롤러가 헬스체크 및 원격 제출을 담당하도록 설정
+  controllerName: kueue.x-k8s.io/multikueue
+  parameters:
+    apiGroup: kueue.x-k8s.io
+    kind: MultiKueueConfig
+    name: multikueue-config

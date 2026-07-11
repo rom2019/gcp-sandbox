@@ -1,0 +1,29 @@
+# ==============================================================================
+# Manifest: 01-onprem-batch-job.yaml
+# Description: 온프레미스 GPU 쿼터 범위 내(4 Mock GPUs)에서 실행되는 배치 Job
+# ==============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: onprem-ai-simulation-01
+  namespace: default
+  labels:
+    kueue.x-k8s.io/queue-name: user-ai-queue # Kueue LocalQueue 지정
+spec:
+  parallelism: 2 # 2개의 파드가 2개씩 총 4개의 Mock GPU 사용 -> 온프레미스 쿼터(4개) 딱 맞춤
+  completions: 2
+  suspend: true  # Kueue가 관락/스케줄링하도록 시작 시 suspended 상태로 주입
+  template:
+    spec:
+      containers:
+      - name: mock-ai-trainer
+        image: python:3.9-slim
+        command: ["python", "-c", "import time; print('Executing On-premise AI Batch Simulation...'); time.sleep(60)"]
+        resources:
+          requests:
+            example.com/mock-gpu: "2"
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            example.com/mock-gpu: "2"
+      restartPolicy: Never

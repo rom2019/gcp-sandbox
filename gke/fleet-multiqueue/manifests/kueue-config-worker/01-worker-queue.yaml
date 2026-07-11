@@ -1,0 +1,33 @@
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ClusterQueue
+metadata:
+  name: cluster-queue-cloud-worker
+spec:
+  namespaceSelector: {}
+  resourceGroups:
+    - coveredResources: ["example.com/mock-gpu", "cpu", "memory"]
+      flavors:
+        - name: cloud-mock-gpu-flavor
+          resources:
+            - name: example.com/mock-gpu
+              nominalQuota: 64
+            - name: cpu
+              nominalQuota: 1000
+            - name: memory
+              nominalQuota: 1000Gi
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ResourceFlavor
+metadata:
+  name: cloud-mock-gpu-flavor
+spec:
+  nodeLabels:
+    node-role: cloud-worker
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: LocalQueue
+metadata:
+  name: user-ai-queue
+  namespace: default
+spec:
+  clusterQueue: cluster-queue-cloud-worker

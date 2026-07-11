@@ -1,0 +1,57 @@
+# ==============================================================================
+# Manifest: 02-cluster-queue-onprem.yaml
+# Description: 온프레미스 매니저의 하이브리드 ClusterQueue (온프레미스 4 GPUs 초과 시 클라우드로 버스팅)
+# ==============================================================================
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ClusterQueue
+metadata:
+  name: cluster-queue-onprem
+spec:
+  namespaceSelector: {}
+  admissionChecks:
+    - multikueue-check # MultiKueue 원격 검증 포함
+  resourceGroups:
+    - coveredResources: ["example.com/mock-gpu", "cpu", "memory"]
+      flavors:
+        # 1순위: 온프레미스 GPU 쿼터 (최대 4개)
+        - name: onprem-mock-gpu-flavor
+          resources:
+            - name: example.com/mock-gpu
+              nominalQuota: 4
+            - name: cpu
+              nominalQuota: 100
+            - name: memory
+              nominalQuota: 100Gi
+        # 2순위 (버스팅): 온프레미스 쿼터 소진 시 클라우드 GPU 쿼터 (최대 64개)로 확장
+        - name: cloud-mock-gpu-flavor
+          resources:
+            - name: example.com/mock-gpu
+              nominalQuota: 64
+            - name: cpu
+              nominalQuota: 1000
+            - name: memory
+              nominalQuota: 1000Gi
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ResourceFlavor
+metadata:
+  name: onprem-mock-gpu-flavor
+spec:
+  nodeLabels:
+    node-role: onprem-manager
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ResourceFlavor
+metadata:
+  name: cloud-mock-gpu-flavor
+spec:
+  nodeLabels:
+    node-role: cloud-worker
+---
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: LocalQueue
+metadata:
+  name: user-ai-queue
+  namespace: default
+spec:
+  clusterQueue: cluster-queue-onprem
