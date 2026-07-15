@@ -141,3 +141,10 @@ git push origin main
 1. **Keyless Authentication**: No Service Account keys (`.json`) are stored or exposed.
 2. **Strict Attribute Condition**: The WIF Provider includes an `attribute_condition` to restrict authentication strictly to tokens issued for your specific GitHub repository (`assertion.repository == "OWNER/REPO"`).
 3. **Least Privilege IAM**: The dedicated Service Account only holds `roles/storage.objectAdmin` for the specific bucket and `roles/compute.loadBalancerAdmin` for CDN cache invalidation.
+
+---
+
+## 🔗 Related Links
+
+- [Presentation Slide](https://docs.google.com/presentation/d/1vfKqzFKMFIhH9vhhXUMAg8upt1yDoZWbquCFHLiaQ00/edit?slide=id.p1#slide=id.p1)
+

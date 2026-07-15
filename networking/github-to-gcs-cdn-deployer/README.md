@@ -142,3 +142,10 @@ git push origin main
 1. **키 없는 인증 (Keyless Authentication)**: GCP 서비스 계정 JSON 비대칭키를 발급하지 않으므로 키 유출 및 관리 위험 차단.
 2. **엄격한 속성 조건 (`attribute_condition`)**: OIDC Provider 생성 시 `assertion.repository == "OWNER/REPO"` 조건을 필수 부여하여 지정된 GitHub 리포지토리의 토큰만 인증 허용 (스푸핑 방지).
 3. **최소 권한 부여 (Least Privilege)**: 배포용 서비스 계정에 버킷 관리 및 CDN 무효화에 필요한 역할만 한정적으로 부여.
+
+---
+
+## 🔗 관련 링크 (Related Links)
+
+- [Presentation Slide](https://docs.google.com/presentation/d/1vfKqzFKMFIhH9vhhXUMAg8upt1yDoZWbquCFHLiaQ00/edit?slide=id.p1#slide=id.p1)
+
