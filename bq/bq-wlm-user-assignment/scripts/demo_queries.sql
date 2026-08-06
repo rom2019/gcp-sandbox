@@ -28,18 +28,17 @@ ORDER BY creation_time DESC
 LIMIT 20;
 
 -- ------------------------------------------------------------
--- (B) 현재 활성 할당(assignment) 목록과 principal 매핑 확인
+-- (B) 현재 활성 할당(assignment) 목록과 DDL 정의(principal, 한도 등) 확인
 -- ------------------------------------------------------------
 SELECT
   assignment_id,
-  assignee,
-  job_type,
-  principal,
   reservation_name,
-  assignment_type
+  job_type,
+  assignee_id,
+  assignee_type,
+  ddl
 FROM `region-{LOCATION}`.INFORMATION_SCHEMA.ASSIGNMENTS
-WHERE reservation_name = '{RESERVATION_NAME}'
-ORDER BY principal IS NULL, principal;
+WHERE reservation_name = '{RESERVATION_NAME}';
 
 -- ------------------------------------------------------------
 -- (C) 특정 프로젝트가 사용 중인 예약 확인 (일반 할당 기준)

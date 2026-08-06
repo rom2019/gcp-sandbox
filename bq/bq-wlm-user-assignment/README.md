@@ -178,22 +178,17 @@ TARGET_PROJECT_ID=<demo_project_id> \
 
 ### 6.2 프로젝트 한도(Project Limit) 데모 (Terraform 미지원 기능)
 
+> **주의:** BigQuery의 `scheduling_policy.max_slots`는 **최소 100 이상**이어야 합니다. 또한 `LOCATION`은 예약이 생성된 위치(예: `US`)와 일치해야 합니다.
+
 ```bash
-ADMIN_PROJECT_ID=<project_id> \
-LOCATION=<reservation_location> \
-RESERVATION_NAME=<reservation_name> \
-TARGET_PROJECT_ID=<demo_project_id> \
-MAX_SLOTS=50 \
+ADMIN_PROJECT_ID=agentspace-451402 \
+LOCATION=US \
+RESERVATION_NAME=demo-principal-assignment-reservation \
+TARGET_PROJECT_ID=agentspace-451402 \
+MAX_SLOTS=100 \
 MAX_CONCURRENCY=5 \
 ./scripts/project_limit_override.sh
 ```
-ADMIN_PROJECT_ID=agentspace-451402 \
-LOCATION=us-central1 \
-RESERVATION_NAME=demo-principal-assignment-reservation \
-TARGET_PROJECT_ID=agentspace-451402 \
-MAX_SLOTS=50 \
-MAX_CONCURRENCY=5 \
-./scripts/project_limit_override.sh
 ### 6.3 쿼리 라우팅 검증 (SQL)
 
 `scripts/demo_queries.sql` 참고. 핵심 쿼리:

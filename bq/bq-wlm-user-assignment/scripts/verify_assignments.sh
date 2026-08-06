@@ -37,17 +37,17 @@ bq ls --reservation_assignment \
 
 echo
 echo "======================================================"
-echo "3) INFORMATION_SCHEMA.ASSIGNMENTS 로 principal 컬럼 직접 확인"
+echo "3) INFORMATION_SCHEMA.ASSIGNMENTS 로 할당 및 DDL(principal, scheduling_policy 등) 확인"
 echo "   (bq query 로 실행)"
 echo "======================================================"
 cat <<SQL
 SELECT
   assignment_id,
-  assignee,
+  reservation_name,
   job_type,
-  principal,
-  reservation_name
+  assignee_id,
+  assignee_type,
+  ddl
 FROM \`region-${LOCATION}\`.INFORMATION_SCHEMA.ASSIGNMENTS
-WHERE reservation_name = '${RESERVATION_NAME}'
-ORDER BY principal IS NULL, principal;
+WHERE reservation_name = '${RESERVATION_NAME}';
 SQL

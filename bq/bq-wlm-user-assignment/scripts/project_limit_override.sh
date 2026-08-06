@@ -15,7 +15,7 @@
 #
 # 사용법:
 #   ADMIN_PROJECT_ID=... LOCATION=... RESERVATION_NAME=... \
-#   TARGET_PROJECT_ID=... MAX_SLOTS=50 MAX_CONCURRENCY=5 \
+#   TARGET_PROJECT_ID=... MAX_SLOTS=100 MAX_CONCURRENCY=5 \
 #   ./project_limit_override.sh
 
 set -euo pipefail
@@ -24,7 +24,7 @@ set -euo pipefail
 : "${LOCATION:?LOCATION 환경변수를 설정하세요 (예: US, asia-northeast3)}"
 : "${RESERVATION_NAME:?RESERVATION_NAME 환경변수를 설정하세요}"
 : "${TARGET_PROJECT_ID:?TARGET_PROJECT_ID 환경변수를 설정하세요 (한도를 적용할 프로젝트)}"
-: "${MAX_SLOTS:?MAX_SLOTS 환경변수를 설정하세요 (예: 50)}"
+: "${MAX_SLOTS:?MAX_SLOTS 환경변수를 설정하세요 (최소값: 100, 예: 100)}"
 : "${MAX_CONCURRENCY:?MAX_CONCURRENCY 환경변수를 설정하세요 (예: 5)}"
 
 echo ">>> 프로젝트 한도(Project Limit) 할당 규칙 생성 중..."
@@ -38,15 +38,17 @@ bq mk \
   --scheduling_policy_max_slots="${MAX_SLOTS}" \
   --scheduling_policy_concurrency="${MAX_CONCURRENCY}"
 
-echo ">>> 완료. 활성 일정 정책 재정의는 아래 쿼리로 확인할 수 있습니다:"
+echo ">>> 완료. 활성 할당 및 일정 정책(DDL)은 아래 쿼리로 확인할 수 있습니다:"
 cat <<SQL
 
 SELECT
   assignment_id,
-  assignee,
-  scheduling_policy,
-  assignment_type
+  reservation_name,
+  job_type,
+  assignee_id,
+  assignee_type,
+  ddl
 FROM \`region-${LOCATION}\`.INFORMATION_SCHEMA.ASSIGNMENTS
-WHERE assignee = 'projects/${TARGET_PROJECT_ID}';
+WHERE assignee_id = '${TARGET_PROJECT_ID}';
 
 SQL
