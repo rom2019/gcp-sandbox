@@ -1,0 +1,23 @@
+# 이 파일을 terraform.tfvars 로 복사한 뒤 실제 값으로 수정하세요.
+# cp terraform.tfvars.example terraform.tfvars
+
+project_id  = "my-gcp-ce-demo-admin-project"
+region      = "us-central1"
+
+reservation_location   = "US"
+reservation_name       = "demo-principal-assignment-reservation"
+reservation_edition    = "ENTERPRISE"
+baseline_slot_capacity = 100
+autoscale_max_slots    = 100
+
+# 예약을 실제로 할당(assign)받을 워크로드 프로젝트
+demo_project_id = "my-gcp-ce-demo-workload-project"
+
+# principal 기반 할당 데모 대상
+vip_user_email = "vip.analyst@example.com"
+
+# 서비스 계정은 Terraform이 새로 생성합니다 (service_accounts.tf 참고).
+# account_id만 지정하면 됩니다. (이미 존재하는 서비스 계정을 쓰고 싶다면
+# service_accounts.tf 의 google_service_account.vip_etl 리소스를 제거하고
+# main.tf 의 principal 참조를 data "google_service_account" 로 바꾸세요.)
+vip_service_account_id = "bq-reservation-demo-etl"
