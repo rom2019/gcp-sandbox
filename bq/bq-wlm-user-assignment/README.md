@@ -32,27 +32,28 @@ Terraform 환경입니다.
 
 ```
 [관리 프로젝트 project_id]
-   └── google_bigquery_reservation.demo (Enterprise, baseline 100 slots, autoscale +100)
-          │
-          ├── assignment: project_default   (principal 없음, 일반 라우팅)
-          │      assignee = projects/{demo_project_id}
-          │
-          ├── assignment: vip_user           (principal = 특정 사용자)
-          │      assignee = projects/{demo_project_id}
-          │      principal://goog/subject/{vip_user_email}
-          │
-          └── assignment: vip_service_account (principal = 특정 서비스 계정)
+   ├── google_bigquery_reservation.demo (Enterprise, baseline 100 slots, autoscale +100)
+   │      │
+   │      ├── assignment: vip_user           (principal = 특정 사용자 vip_user_email)
+   │      │      assignee = projects/{demo_project_id}
+   │      │      reservation = demo-principal-assignment-reservation
+   │      │
+   │      └── assignment: vip_service_account (principal = 특정 서비스 계정 vip_service_account_email)
+   │             assignee = projects/{demo_project_id}
+   │             reservation = demo-principal-assignment-reservation
+   │
+   └── reservations/none (기본 주문형/On-Demand 할당)
+          └── assignment: project_default   (principal 없음, 기본 라우팅)
                  assignee = projects/{demo_project_id}
-                 principal://iam.googleapis.com/projects/-/serviceAccounts/{vip_service_account_email}
+                 reservation = "projects/.../reservations/none"
 ```
 
 같은 `demo_project_id`에서 실행되는 쿼리는:
-- `vip_user_email` 사용자가 실행 → `vip_user` 할당으로 라우팅
-- `vip_service_account_email` 서비스 계정이 실행 → `vip_service_account` 할당으로 라우팅
-- 그 외 사용자/서비스 계정이 실행 → `project_default` 일반 할당으로 라우팅
+- **`vip_user_email` 사용자**가 실행 → `vip_user` 할당으로 라우팅 (**예약 슬롯 사용**, `reservation_id` = `...:US.demo-principal-assignment-reservation`)
+- **`vip_service_account_email` 서비스 계정**이 실행 → `vip_service_account` 할당으로 라우팅 (**예약 슬롯 사용**, `reservation_id` = `...:US.demo-principal-assignment-reservation`)
+- **그 외 일반 사용자**가 실행 → `project_default` 기본 할당으로 라우팅 (**주문형 요금제 적용**, `reservation_id` = `null`)
 
-이 방식으로 예를 들어 "특정 BI 대시보드 서비스 계정만 별도 예약으로 격리", "VIP 분석가만
-전용 슬롯 보장" 같은 시나리오를 시연할 수 있습니다.
+이 방식으로 **"특정 VIP 분석가 및 핵심 서비스 계정에만 예약 슬롯을 부여하고, 일반 사용자는 주문형(On-demand)으로 자동 분기"**하는 시나리오를 확실하게 시연할 수 있습니다.
 
 ---
 
@@ -74,7 +75,7 @@ Terraform 환경입니다.
 
 ---
 
-## 6. 사용 방법
+## 4. 사용 방법
 
 ```bash
 # 1) 변수 파일 준비
@@ -102,12 +103,11 @@ terraform destroy
 
 ---
 
-## 7. 시연/검증 방법
+## 5. 시연 및 검증 방법
 
-### 6.1 Terraform 리소스로 생성되지 않는 부분(bq CLI) 확인 및 보완
+### 5.1 할당 조회 및 principal 매핑 확인 (bq CLI)
 
 ```bash
-# 할당 목록 및 principal 매핑 확인
 ADMIN_PROJECT_ID=<project_id> \
 LOCATION=<reservation_location> \
 RESERVATION_NAME=<reservation_name> \
@@ -115,22 +115,9 @@ TARGET_PROJECT_ID=<demo_project_id> \
 ./scripts/verify_assignments.sh
 ```
 
-### 6.2 프로젝트 한도(Project Limit) 데모 (Terraform 미지원 기능)
+### 5.2 쿼리 라우팅 검증 (SQL)
 
-> **주의:** BigQuery의 `scheduling_policy.max_slots`는 **최소 100 이상**이어야 합니다. 또한 `LOCATION`은 예약이 생성된 위치(예: `US`)와 일치해야 합니다.
-
-```bash
-ADMIN_PROJECT_ID=agentspace-451402 \
-LOCATION=US \
-RESERVATION_NAME=demo-principal-assignment-reservation \
-TARGET_PROJECT_ID=agentspace-451402 \
-MAX_SLOTS=100 \
-MAX_CONCURRENCY=5 \
-./scripts/project_limit_override.sh
-```
-### 6.3 쿼리 라우팅 검증 (SQL)
-
-`scripts/demo_queries.sql` 참고. 핵심 쿼리:
+`scripts/demo_queries.sql` 참고. 핵심 라우팅 확인 쿼리:
 
 ```sql
 -- 최근 실행된 작업이 어떤 예약으로 라우팅되었는지 확인
@@ -141,17 +128,17 @@ ORDER BY creation_time DESC
 LIMIT 20;
 ```
 
-### 6.4 실제 시연 시나리오 제안
+### 5.3 실제 시연 시나리오 단계
 
 1. **[VIP ETL 서비스 계정 시연]**: `vip_service_account_email`을 사용하여 `bq_wlm_demo.sample_orders` 테이블에 샘플 데이터 대량 적재 및 일별 요약(`daily_summary`) ETL 실행 (`scripts/demo_queries.sql` 1번 쿼리)
 2. **[VIP 사용자 분석 쿼리 시연]**: `vip_user_email` 계정으로 로그인하여 데모 테이블 분석 쿼리 실행 (`scripts/demo_queries.sql` 2번 쿼리)
 3. **[일반 사용자 분석 쿼리 시연]**: 다른(일반) 계정으로 동일한 분석 쿼리 실행
-4. **[결과 대조 및 라우팅 검증]**: 위 6.3 쿼리(`INFORMATION_SCHEMA.JOBS_BY_PROJECT`)로 실행 주체별 `reservation_id`가 서로 다름을 대조 확인
-   → principal 할당이 있는 사용자와 서비스 계정은 전용 슬롯, 나머지는 일반 할당 슬롯 사용
+4. **[결과 대조 및 라우팅 검증]**: 위 5.2 쿼리(`INFORMATION_SCHEMA.JOBS_BY_PROJECT`)로 실행 주체별 `reservation_id`가 서로 다름을 대조 확인
+   → VIP 사용자(`admin@...`) 및 서비스 계정은 **예약 슬롯(`demo-principal-assignment-reservation`)**, 일반 사용자(`test@...`)는 **주문형(`null`)**으로 분기됨
 
 ---
 
-## 8. 코드 구조
+## 6. 코드 구조
 
 ```
 .
@@ -165,13 +152,12 @@ LIMIT 20;
 ├── README.md
 └── scripts/
     ├── verify_assignments.sh      # 할당 조회/검증 (bq CLI)
-    ├── project_limit_override.sh  # 프로젝트 한도 설정 (Terraform 미지원 → bq CLI)
     └── demo_queries.sql           # 라우팅 검증용 SQL 모음 (샘플 적재, 분석, 결과 검증)
 ```
 
 ---
 
-## 9. 참고 사항 및 주의점
+## 7. 참고 사항 및 주의점
 
 - `principal` 옵션은 **Standard 버전 예약에서는 폴더/조직 할당이 지원되지 않는 것과 별개로**,
   프로젝트 수준 할당에는 사용 가능합니다. 다만 데모에서는 Enterprise 버전을 권장합니다.
@@ -183,3 +169,4 @@ LIMIT 20;
 - `unknown_or_deleted_user` 값으로는 할당을 생성할 수 없습니다.
 - 이 기능은 Preview 단계이므로 실제 고객 환경 적용 전 반드시 GCP 공식 문서의 최신 상태와
   GA 여부를 재확인하세요. 기능/지원 문의: `bigquery-wlm-feedback@google.com`
+

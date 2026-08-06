@@ -24,18 +24,18 @@ resource "google_bigquery_reservation" "demo" {
 }
 
 ########################################
-# 2. 프로젝트 수준 "일반" 할당 (principal 미설정)
+# 2. 프로젝트 수준 기본 "주문형(On-demand / none)" 할당
 ########################################
-# principal이 설정되지 않은 일반 할당입니다.
-# 데모 워크로드 프로젝트의 기본(default) 라우팅 대상이 됩니다.
-# → principal이 일치하는 할당이 없는 모든 사용자/서비스 계정의 쿼리가
-#   이 일반 할당을 통해 이 예약을 사용하게 됩니다.
+# principal이 설정되지 않은 일반 기본 할당입니다.
+# reservations/none 을 지정하여 기본적으로 주문형(on-demand) 요금제를 사용하게 합니다.
+# → VIP principal(admin@, vip_etl SA)이 아닌 일반 사용자(test@ 등)는
+#   이 none 할당을 통해 예약 슬롯 대신 주문형(on-demand)으로 쿼리가 실행됩니다.
 resource "google_bigquery_reservation_assignment" "project_default" {
   provider = google
 
   assignee    = "projects/${var.demo_project_id}"
   job_type    = "QUERY"
-  reservation = google_bigquery_reservation.demo.id
+  reservation = "projects/${var.project_id}/locations/${var.reservation_location}/reservations/none"
 }
 
 ########################################
