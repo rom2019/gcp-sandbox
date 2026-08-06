@@ -1,7 +1,7 @@
-# BigQuery Reservation - Principal 기반 할당(Preview) 데모 환경
+# BigQuery Reservation - Principal 기반 할당 데모 환경
 
 BigQuery 예약(Reservation) 할당에 **`principal` 속성**을 사용하여, 쿼리를 실행하는
-**사용자/서비스 계정 단위**로 특정 예약에 라우팅하는 신규 기능(Preview)의 고객 데모용
+**사용자/서비스 계정 단위**로 특정 예약에 라우팅하는 신규 기능의 고객 데모용
 Terraform 환경입니다.
 
 > 참고 공식 문서: [워크로드 할당 관리 - BigQuery](https://docs.cloud.google.com/bigquery/docs/reservations-assignments?hl=ko)
@@ -26,37 +26,9 @@ Terraform 환경입니다.
   적용되며, 지원이 제한될 수 있습니다.
 - 사용자별 할당의 **프로젝트당 기본 한도는 10개**입니다.
 
-### 지원되는 principal 형식
-
-| ID 유형             | 형식 |
-|--------------------|------|
-| Google 계정(사용자)   | `principal://goog/subject/{EMAIL_ADDRESS}` |
-| 서비스 계정          | `principal://iam.googleapis.com/projects/-/serviceAccounts/{SA_EMAIL}` |
-| 직원 ID 풀(Workforce Identity) ID | `principal://iam.googleapis.com/locations/global/workforcePools/{POOL_ID}/subject/{SUBJECT_ID}` |
-| 워크로드 아이덴티티 풀 ID | `principal://iam.googleapis.com/projects/{PROJECT_NUMBER}/locations/global/workloadIdentityPools/{POOL_ID}/subject/{SUBJECT_ID}` |
-
-> `unknown_or_deleted_user` 는 삭제/비활성화된 계정을 나타내는 예약된(sentinel) 값이며
-> 할당에 사용할 수 없습니다.
 
 ---
-
-## 2. Terraform 지원 여부 (중요)
-
-| 기능 | Terraform 지원 여부 | 비고 |
-|---|---|---|
-| 예약(Reservation) 생성 | ✅ 지원 | `google_bigquery_reservation` |
-| 일반 할당(project/folder/org, principal 없음) | ✅ 지원 | `google_bigquery_reservation_assignment` |
-| **Principal 기반 할당** | ✅ **지원** (`principal` 필드) | 최근 Terraform Google Provider에 추가됨 (PR #28508). **반드시 이를 포함한 버전 이상**을 사용해야 하며, 오래된 provider에서는 `principal` 인수 자체가 인식되지 않습니다. 본 코드의 `versions.tf`에서 `>= 7.36.0` 이상을 요구하도록 설정했습니다. |
-| `none` 할당(주문형 가격 책정) | ✅ 지원 | `reservation = ".../reservations/none"` |
-| **프로젝트 한도(Project Limit) / 일정 정책 재정의**<br>(`scheduling_policy_max_slots`, `scheduling_policy_concurrency`) | ❌ **미지원** | 공식 문서에도 이 기능은 콘솔/SQL/bq 방법만 안내되어 있고 Terraform 예시가 없습니다. → `scripts/project_limit_override.sh` (bq CLI) 참고 |
-| 쿼리별 예약 재정의 (`SET @@reservation`) | N/A (런타임 동작) | Terraform 대상 아님, SQL/bq/API에서 직접 수행 |
-
-> Terraform provider 버전이 오래되어 `principal` 인수를 인식하지 못하는 경우
-> (`Unsupported argument` 오류), `terraform init -upgrade` 로 provider를 최신화하세요.
-
----
-
-## 3. 아키텍처
+## 2. 아키텍처
 
 ```
 [관리 프로젝트 project_id]
@@ -75,7 +47,7 @@ Terraform 환경입니다.
 ```
 
 같은 `demo_project_id`에서 실행되는 쿼리는:
-- `vip_user_email` 사용자가 실행 → `vip_user` 할당으로 라우팅 (전용 슬롯)
+- `vip_user_email` 사용자가 실행 → `vip_user` 할당으로 라우팅
 - `vip_service_account_email` 서비스 계정이 실행 → `vip_service_account` 할당으로 라우팅
 - 그 외 사용자/서비스 계정이 실행 → `project_default` 일반 할당으로 라우팅
 
@@ -84,40 +56,7 @@ Terraform 환경입니다.
 
 ---
 
-## 4. 데모용 서비스 계정 및 필요 권한
-
-`service_accounts.tf`에서 principal 할당 데모 대상이 될 서비스 계정을 새로 생성하고,
-BigQuery 쿼리 실행에 필요한 최소한의 권한을 함께 부여합니다.
-
-### 왜 이 권한이 필요한가
-
-**예약(Reservation)에 대한 별도 접근 권한은 필요하지 않습니다.** principal 기반 할당
-자체가 "이 principal이 실행하는 쿼리는 이 예약을 써라"는 라우팅 규칙이기 때문에,
-서비스 계정이 예약 리소스에 직접 IAM 권한을 가질 필요는 없습니다.
-대신 서비스 계정이 **애초에 BigQuery에서 쿼리를 실행할 수 있어야** 하므로 아래 권한이
-필요합니다.
-
-| 역할(Role) | 부여 대상 | 필수 여부 | 설명 |
-|---|---|---|---|
-| `roles/bigquery.jobUser` | 프로젝트(`demo_project_id`) | **필수** | Job(쿼리) 제출 권한. 이게 없으면 쿼리 자체가 거부됨 |
-| `roles/bigquery.dataEditor` (쓰기 필요시) 또는 `roles/bigquery.dataViewer` (읽기 전용) | 프로젝트 또는 데이터셋 | **필수** | 실제 테이블/데이터셋 접근 권한 |
-| `roles/bigquery.reservations.use` | 예약 또는 관리 프로젝트 | 선택 | `SET @@reservation`으로 **수동 재정의**할 때만 필요. 일반적인 principal 자동 라우팅에는 불필요 |
-
-> 코드에서는 데모 편의를 위해 프로젝트 수준으로 `dataEditor`를 부여했습니다.
-> 실제 고객 환경에서는 `service_accounts.tf`에 주석 처리된
-> `google_bigquery_dataset_iam_member` 예시처럼 **데이터셋 수준으로 좁혀서**
-> 최소 권한 원칙을 지키는 것을 권장하세요.
-
-### 기존 서비스 계정을 재사용하고 싶다면
-
-고객이 이미 운영 중인 서비스 계정(예: 실제 ETL 파이프라인 SA)으로 데모하고 싶다면:
-1. `service_accounts.tf`의 `google_service_account.vip_etl` 리소스와 관련 IAM 바인딩을 제거
-2. `data "google_service_account" "vip_etl"` 데이터 소스로 기존 계정을 조회하도록 변경
-3. `main.tf`의 `vip_service_account` 할당에서 참조하는 이메일을 데이터 소스 참조로 교체
-
----
-
-## 5. 사전 준비 사항
+## 3. 사전 준비 사항
 
 1. **권한**: 관리 프로젝트 및 할당 대상 리소스에 대해 아래 IAM 역할 중 하나 필요
    - `BigQuery Admin`, `BigQuery Resource Admin`, 또는 `BigQuery Resource Editor`
@@ -204,12 +143,11 @@ LIMIT 20;
 
 ### 6.4 실제 시연 시나리오 제안
 
-1. `vip_user_email` 계정으로 로그인하여 `demo_project_id`에서 쿼리 실행
-2. 다른(일반) 계정으로 동일 프로젝트에서 쿼리 실행
-3. 위 6.3 쿼리로 두 작업의 `reservation_id`가 서로 다름을 보여줌
-   → principal 할당이 있는 사용자는 전용 슬롯, 나머지는 일반 할당 슬롯 사용
-4. (선택) `vip_service_account_email`을 사용하는 Scheduled Query / Dataform / Airflow
-   작업을 실행해 서비스 계정 단위 라우팅도 함께 시연
+1. **[VIP ETL 서비스 계정 시연]**: `vip_service_account_email`을 사용하여 `bq_wlm_demo.sample_orders` 테이블에 샘플 데이터 대량 적재 및 일별 요약(`daily_summary`) ETL 실행 (`scripts/demo_queries.sql` 1번 쿼리)
+2. **[VIP 사용자 분석 쿼리 시연]**: `vip_user_email` 계정으로 로그인하여 데모 테이블 분석 쿼리 실행 (`scripts/demo_queries.sql` 2번 쿼리)
+3. **[일반 사용자 분석 쿼리 시연]**: 다른(일반) 계정으로 동일한 분석 쿼리 실행
+4. **[결과 대조 및 라우팅 검증]**: 위 6.3 쿼리(`INFORMATION_SCHEMA.JOBS_BY_PROJECT`)로 실행 주체별 `reservation_id`가 서로 다름을 대조 확인
+   → principal 할당이 있는 사용자와 서비스 계정은 전용 슬롯, 나머지는 일반 할당 슬롯 사용
 
 ---
 
@@ -218,17 +156,17 @@ LIMIT 20;
 ```
 .
 ├── versions.tf                    # Terraform/Provider 버전 제약
-├── apis.tf                        # 필요한 GCP API 활성화
 ├── variables.tf                   # 입력 변수
 ├── main.tf                        # 예약 + 일반/Principal 기반 할당 리소스
+├── dataset.tf                     # 데모용 Dataset 및 Table (sample_orders, daily_summary)
 ├── service_accounts.tf            # 데모용 서비스 계정 생성 + BigQuery IAM 권한 부여
-├── outputs.tf                     # 출력값
+├── outputs.tf                     # 출력값 (Reservation, Assignment, Dataset, Table ID 등)
 ├── terraform.tfvars.example       # 변수 값 예시
 ├── README.md
 └── scripts/
     ├── verify_assignments.sh      # 할당 조회/검증 (bq CLI)
     ├── project_limit_override.sh  # 프로젝트 한도 설정 (Terraform 미지원 → bq CLI)
-    └── demo_queries.sql           # 라우팅 검증용 SQL 모음
+    └── demo_queries.sql           # 라우팅 검증용 SQL 모음 (샘플 적재, 분석, 결과 검증)
 ```
 
 ---

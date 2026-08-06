@@ -27,3 +27,19 @@ output "vip_etl_service_account_email" {
   description = "데모용으로 생성된 서비스 계정 이메일. 데모 시연 시 이 계정으로 쿼리를 실행하세요 (예: gcloud auth activate-service-account 또는 impersonation)."
   value       = google_service_account.vip_etl.email
 }
+
+output "demo_dataset_id" {
+  description = "데모용 BigQuery 데이터셋 ID"
+  value       = google_bigquery_dataset.demo.dataset_id
+}
+
+output "sample_orders_table_id" {
+  description = "데모용 주문 테이블 ID"
+  value       = google_bigquery_table.sample_orders.table_id
+}
+
+output "daily_summary_table_id" {
+  description = "데모용 일별 요약 테이블 ID"
+  value       = google_bigquery_table.daily_summary.table_id
+}
+
