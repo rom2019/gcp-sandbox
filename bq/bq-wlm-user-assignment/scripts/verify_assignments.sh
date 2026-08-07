@@ -37,7 +37,7 @@ bq ls --reservation_assignment \
 
 echo
 echo "======================================================"
-echo "3) INFORMATION_SCHEMA.ASSIGNMENTS 로 할당 및 DDL(principal, scheduling_policy 등) 확인"
+echo "3) INFORMATION_SCHEMA.ASSIGNMENTS 로 할당 및 principal 확인"
 echo "   (bq query 로 실행)"
 echo "======================================================"
 cat <<SQL
@@ -47,6 +47,8 @@ SELECT
   job_type,
   assignee_id,
   assignee_type,
+  -- DDL에서 principal 속성 추출
+  REGEXP_EXTRACT(ddl, r"""principal\s*=\s*['"]([^'"]+)['"]""") AS principal,
   ddl
 FROM \`region-${LOCATION}\`.INFORMATION_SCHEMA.ASSIGNMENTS
 WHERE reservation_name = '${RESERVATION_NAME}';

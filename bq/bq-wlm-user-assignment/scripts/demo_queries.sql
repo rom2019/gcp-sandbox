@@ -104,7 +104,7 @@ LIMIT 20;
 
 
 -- ============================================================
--- 4. [검증] 현재 활성 할당(Assignment) 목록 및 DDL 옵션 확인
+-- 4. [검증] 현재 활성 할당(Assignment) 목록 및 Principal 확인
 -- ============================================================
 SELECT
   assignment_id,
@@ -112,6 +112,8 @@ SELECT
   job_type,
   assignee_id,
   assignee_type,
+  -- DDL 옵션에서 principal 속성 추출
+  REGEXP_EXTRACT(ddl, r"""principal\s*=\s*['"]([^'"]+)['"]""") AS principal,
   ddl
 FROM `region-{LOCATION}`.INFORMATION_SCHEMA.ASSIGNMENTS
 WHERE reservation_name = '{RESERVATION_NAME}';
