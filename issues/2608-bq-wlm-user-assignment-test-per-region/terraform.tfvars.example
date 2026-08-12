@@ -1,0 +1,28 @@
+# GCP Project ID
+project_id = "your-gcp-project-id"
+
+# 리전당 생성할 Principal 할당 개수 (기본 10개)
+assignment_count = 10
+
+# 예약 이름 및 SA 접두사
+reservation_prefix     = "test-res"
+service_account_prefix = "bq-wlm-test-user"
+
+# 예약 버전 및 슬롯 설정 (기준 슬롯 0개로 설정 시 유휴 비용 0원)
+reservation_edition    = "ENTERPRISE"
+baseline_slot_capacity = 0
+autoscale_max_slots    = 100
+
+# 테스트할 리전 목록 (옵션)
+# regions = [
+#   "US",
+#   "EU",
+#   "asia-northeast3",
+#   "asia-northeast1",
+#   "us-central1",
+#   "europe-west1"
+# ]
+
+# 쿼리 테스트용 데모 데이터셋 생성 여부 (기본값: true)
+# create_demo_dataset = true
+
