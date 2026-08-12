@@ -1,6 +1,6 @@
-# BigQuery Reservation - 리전별 User Assignment 한도 확장(10 → 100) 검증 환경
+# BigQuery Reservation - User Assignment 한도 확장(10 → 100) 검증
 
-본 Terraform 환경은 BigQuery Reservation의 **User Assignment(Principal 기반 할당) 최대 생성 개수가 기존 기본 10개에서 100개로 상향(확장)**됨에 따라, **Google Cloud 전 지역(Multi-region 및 개별 리전 35개 이상)에 해당 한도 확장이 정상 적용되었는지 테스트 및 검증하기 위한 목적으로 생성된 코드**입니다.
+본 Terraform 환경은 BigQuery Reservation의 **User Assignment(Principal 기반 할당) 최대 생성 개수가 기존 기본 10개에서 100개로 상향(확장)** 됨에 따라, **Google Cloud 전 지역(Multi-region 및 개별 리전 35개 이상)에 해당 한도 확장이 정상 적용되었는지 테스트 및 검증하기 위한 목적으로 생성된 코드입니다.**
 
 > 참고 공식 문서: [워크로드 할당 관리 - BigQuery](https://docs.cloud.google.com/bigquery/docs/reservations-assignments?hl=ko)
 
@@ -8,12 +8,13 @@
 
 ## 1. 개요 및 테스트 목적
 
-- **기존 한도**: BigQuery 예약의 사용자별(`principal`) 할당은 프로젝트당 **기본 10개**로 제한되어 있었습니다.
-- **확장된 한도**: 사용자 할당의 최대 개수가 기본 10개에서 **100개**로 대폭 상향되었습니다.
+- **기존 한도**: BigQuery 예약의 사용자별(`principal`) 할당은 프로젝트당 **기본 10개로 제한**되어 있었습니다.
+- **확장된 한도**: 사용자 할당의 최대 개수가 기본 10개에서 **최대 100개로 대폭 상향**되었습니다.
 - **테스트 목적**:
   1. 전 세계 BigQuery 지원 리전(US, EU, APAC, EMEA 등 35개 이상 리전) 전체에 걸쳐 한도 확장이 누락 없이 배포되었는지 검증
   2. 리전당 10개 이상의 Principal 할당(최대 100개 이상)을 프로비저닝하여 할당 초과 오류(Quota/Limit Exceeded) 없이 정상 생성되는지 확인
   3. 일괄 생성된 Principal 할당이 각 리전의 예약에 정확하게 바인딩되고 쿼리 라우팅에 활용될 수 있는지 자동화 스크립트로 전수 조사
+
 
 ---
 
