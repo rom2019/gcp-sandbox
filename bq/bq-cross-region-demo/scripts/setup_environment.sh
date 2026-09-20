@@ -23,7 +23,7 @@ echo "=================================================================="
 echo " Sendbird BigQuery Cross-Region Solution Test Setup"
 echo " Project:        ${PROJECT_ID}"
 echo " Source Region:  ${SOURCE_REGION} (Dataset: ${SOURCE_DATASET})"
-echo " Dest Region:    ${DEST_REGION} (Dataset: ${DEST_DATASET})"
+echo " Dest Region:    ${DEST_REGION} (Datasets: sendbird_dest_dts_kr, sendbird_dest_copy_kr, sendbird_dest_crr_kr)"
 echo "=================================================================="
 
 # 1. Create Source Dataset

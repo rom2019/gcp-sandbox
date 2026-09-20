@@ -38,16 +38,19 @@ MAX_ATTEMPTS=30
 ATTEMPT=1
 SYNCED=false
 
+# NOTE: INFORMATION_SCHEMA.SCHEMATA_REPLICAS has no 'replica_type' column and
+# 'sync_status' is a JSON field (not a plain 'SYNCED'/'SYNCING' string) - verified
+# against the official reference doc (Sep 2026). The documented, reliable signal
+# for "initial sync finished" is the BOOL column creation_complete.
 while [[ ${ATTEMPT} -le ${MAX_ATTEMPTS} ]]; do
-  CHECK_SQL="SELECT replica_name, location, replica_type, sync_status, replication_time FROM \`${PROJECT_ID}\`.\`region-${DEST_REGION}\`.INFORMATION_SCHEMA.SCHEMATA_REPLICAS WHERE schema_name = '${SOURCE_DATASET}';"
+  CHECK_SQL="SELECT replica_name, location, creation_complete, TO_JSON_STRING(sync_status) AS sync_status_json FROM \`${PROJECT_ID}\`.\`region-${DEST_REGION}\`.INFORMATION_SCHEMA.SCHEMATA_REPLICAS WHERE schema_name = '${SOURCE_DATASET}';"
   OUTPUT=$(bq query --use_legacy_sql=false --format=prettyjson --location="${DEST_REGION}" "${CHECK_SQL}" 2>/dev/null || echo "[]")
 
-  SYNC_STATUS=$(echo "${OUTPUT}" | grep -o '"sync_status": "[^"]*' | cut -d'"' -f4 || echo "PENDING")
-  REPLICA_TYPE=$(echo "${OUTPUT}" | grep -o '"replica_type": "[^"]*' | cut -d'"' -f4 || echo "")
+  CREATION_COMPLETE=$(echo "${OUTPUT}" | grep -o '"creation_complete": *[a-z]*' | awk -F': ' '{print $2}' | tr -d ' ' || echo "false")
 
-  echo "  [Attempt ${ATTEMPT}/${MAX_ATTEMPTS}] Replica Type: ${REPLICA_TYPE}, Sync Status: ${SYNC_STATUS}"
+  echo "  [Attempt ${ATTEMPT}/${MAX_ATTEMPTS}] creation_complete: ${CREATION_COMPLETE:-false}"
 
-  if [[ "${SYNC_STATUS}" == "SYNCED" ]]; then
+  if [[ "${CREATION_COMPLETE}" == "true" ]]; then
     SYNCED=true
     break
   fi

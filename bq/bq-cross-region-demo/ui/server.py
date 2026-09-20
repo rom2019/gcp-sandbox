@@ -12,7 +12,7 @@ import socket
 import subprocess
 import time
 import urllib.parse
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 # GCP project IDs: 6-30 chars, lowercase letters/digits/hyphens, starting with a letter.
 _PROJECT_ID_RE = re.compile(r"^[a-z][a-z0-9-]{4,28}[a-z0-9]$")
@@ -31,11 +31,19 @@ UI_DIR = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS_DIR = os.path.abspath(os.path.join(UI_DIR, "..", "scripts"))
 
 
-def run_bq_cmd(cmd_args, timeout=45):
-    """Runs a command with CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE=false."""
+def run_bq_cmd(cmd_args, timeout=45, extra_env=None):
+    """Runs a command with CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE=false.
+
+    `extra_env` overrides are needed when cmd_args invokes setup_environment.sh
+    or cleanup.sh directly: those scripts read PROJECT_ID/SOURCE_REGION/DEST_REGION
+    from the environment (they take no CLI flags), so the request's actual
+    project_id/regions must be passed through explicitly rather than left to
+    whatever this process's own environment happens to contain.
+    """
     env = os.environ.copy()
     env["CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE"] = "false"
-    env["PROJECT_ID"] = "test-sendbird-cross-region-cp"
+    if extra_env:
+        env.update(extra_env)
     try:
         res = subprocess.run(
             cmd_args,
@@ -187,7 +195,22 @@ class DemoRequestHandler(SimpleHTTPRequestHandler):
                 "bq", "show", f"{project_id}:sendbird_source_us.chat_messages"
             ], timeout=10)
             if rc_chk != 0:
-                run_bq_cmd([f"{SCRIPTS_DIR}/setup_environment.sh"], timeout=90)
+                # 150s: dataset creation + a 10,000-row INSERT + a CTAS aggregation can
+                # take longer than a quick bq mk/cp call, especially on-demand slots.
+                rc_setup, out_setup, err_setup = run_bq_cmd(
+                    [f"{SCRIPTS_DIR}/setup_environment.sh"], timeout=150, extra_env={
+                        "PROJECT_ID": project_id,
+                        "SOURCE_REGION": src_region,
+                        "DEST_REGION": dst_region,
+                    })
+                if rc_setup != 0:
+                    # Don't limp on into copy/DTS/CRR steps against a source dataset
+                    # that may not exist yet - surface the real failure instead.
+                    self._send_json(500, {
+                        "status": "setup_failed",
+                        "logs": {"setup": out_setup or err_setup or f"setup_environment.sh exited {rc_setup}"}
+                    })
+                    return
 
             # Ensure 3 dedicated Seoul destination datasets exist
             for ds_name in ["sendbird_dest_dts_kr", "sendbird_dest_copy_kr", "sendbird_dest_crr_kr"]:
@@ -335,6 +358,9 @@ class DemoRequestHandler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8080"))
-    server = HTTPServer(("0.0.0.0", port), DemoRequestHandler)
+    # Threaded: /api/initial-sync can block for 100+ seconds on real bq/gcloud
+    # calls, and a plain HTTPServer would freeze every other request (including
+    # the UI's own live-status polling) until it returns.
+    server = ThreadingHTTPServer(("0.0.0.0", port), DemoRequestHandler)
     print(f"Sendbird BigQuery Live GCP Demo UI Server running at http://{socket.gethostname()}:{port}")
     server.serve_forever()

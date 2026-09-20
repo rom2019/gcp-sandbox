@@ -395,13 +395,20 @@ ORDER BY solution;</pre>
       statusEl.textContent = '🚀 [전체 초기 동기화] GCP에 원본(10,000건) 및 서울 3개 목적지(dts_kr, copy_kr, crr_kr)를 생성하고 복제 중입니다 (약 40~60초 소요)...';
 
       try {
-        await fetch('/api/initial-sync', {
+        const res = await fetch('/api/initial-sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ project_id: PROJECT_ID, source_region: SRC_REGION, dest_region: DST_REGION })
         });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const detail = (data.logs && data.logs.setup) || data.error || `HTTP ${res.status}`;
+          statusEl.textContent = `❌ [초기 동기화 실패] ${detail}`;
+        }
         await fetchLiveGcpStatus();
-      } catch (e) {}
+      } catch (e) {
+        statusEl.textContent = '⚠️ 초기 동기화 요청 중 네트워크 오류가 발생했습니다.';
+      }
 
       btn.disabled = false;
       btn.textContent = '1. 전체 초기 동기화 (Sync All)';
