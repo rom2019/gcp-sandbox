@@ -10,7 +10,6 @@ PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || echo 
 SOURCE_REGION="${SOURCE_REGION:-us-central1}"
 DEST_REGION="${DEST_REGION:-asia-northeast3}"
 SOURCE_DATASET="${SOURCE_DATASET:-sendbird_source_us}"
-DEST_DATASET="${DEST_DATASET:-sendbird_dest_kr}"
 
 if [[ -z "${PROJECT_ID}" ]]; then
   echo "Error: PROJECT_ID is not set. Please export PROJECT_ID=<your-project-id> or set default gcloud project." >&2
@@ -34,6 +33,11 @@ bq --project_id="${PROJECT_ID}" --location="${SOURCE_REGION}" mk --dataset \
   "${PROJECT_ID}:${SOURCE_DATASET}" || echo "Source dataset already exists."
 
 # 2. Create Destination Datasets (DTS, Table Copy, CRR)
+#    - sendbird_dest_dts_kr  -> populated by test_dts.sh
+#    - sendbird_dest_copy_kr -> populated by test_table_copy.py
+#    - sendbird_dest_crr_kr  -> not written to by test_crr.sh (CRR replicates the
+#      source dataset under its own name); reserved for the optional ui/server.py
+#      demo, which creates convenience views here pointing at the replica.
 echo "[2/3] Creating Destination Datasets in ${DEST_REGION}..."
 for ds in sendbird_dest_dts_kr sendbird_dest_copy_kr sendbird_dest_crr_kr; do
   bq --project_id="${PROJECT_ID}" --location="${DEST_REGION}" mk --dataset \

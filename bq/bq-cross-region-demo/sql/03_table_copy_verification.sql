@@ -1,6 +1,8 @@
 -- =============================================================================
 -- Sendbird Solution Comparison: Cross-Region Table Copy Verification
 -- Verify BigQuery Copy Job completion, byte sizes, and checksum parity
+-- Manual reference query: replace @PLACEHOLDER@ tokens by hand before running.
+-- @DEST_DATASET@ -> sendbird_dest_copy_kr (the dataset test_table_copy.py copies into)
 -- =============================================================================
 
 -- 1. Check recent COPY jobs across regions in INFORMATION_SCHEMA

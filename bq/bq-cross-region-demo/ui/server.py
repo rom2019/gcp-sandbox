@@ -7,10 +7,25 @@ Executes REAL BigQuery CLI / SQL / DTS commands against GCP project
 
 import json
 import os
+import re
+import socket
 import subprocess
 import time
 import urllib.parse
 from http.server import HTTPServer, SimpleHTTPRequestHandler
+
+# GCP project IDs: 6-30 chars, lowercase letters/digits/hyphens, starting with a letter.
+_PROJECT_ID_RE = re.compile(r"^[a-z][a-z0-9-]{4,28}[a-z0-9]$")
+# GCP region names, e.g. us-central1, asia-northeast3.
+_REGION_RE = re.compile(r"^[a-z]+-[a-z]+\d+$")
+
+
+def _valid_project_id(value):
+    return bool(_PROJECT_ID_RE.match(value or ""))
+
+
+def _valid_region(value):
+    return bool(_REGION_RE.match(value or ""))
 
 UI_DIR = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS_DIR = os.path.abspath(os.path.join(UI_DIR, "..", "scripts"))
@@ -63,7 +78,7 @@ class DemoRequestHandler(SimpleHTTPRequestHandler):
                 "status": "ok",
                 "mode": "live_gcp",
                 "default_project": "test-sendbird-cross-region-cp",
-                "server": "romij.c.googlers.com"
+                "server": socket.gethostname()
             })
             return
 
@@ -72,6 +87,9 @@ class DemoRequestHandler(SimpleHTTPRequestHandler):
             project_id = qs.get("project_id", ["test-sendbird-cross-region-cp"])[0]
             src_region = qs.get("source_region", ["us-central1"])[0]
             dst_region = qs.get("dest_region", ["asia-northeast3"])[0]
+            if not (_valid_project_id(project_id) and _valid_region(src_region) and _valid_region(dst_region)):
+                self._send_json(400, {"error": "invalid project_id or region"})
+                return
 
             # 1. Query US Primary Source Row Count (us-central1) + 3 Dedicated Seoul Destinations (asia-northeast3)
             rc_us, out_us, _ = run_bq_cmd([
@@ -159,6 +177,9 @@ class DemoRequestHandler(SimpleHTTPRequestHandler):
         project_id = params.get("project_id", "test-sendbird-cross-region-cp")
         src_region = params.get("source_region", "us-central1")
         dst_region = params.get("dest_region", "asia-northeast3")
+        if not (_valid_project_id(project_id) and _valid_region(src_region) and _valid_region(dst_region)):
+            self._send_json(400, {"error": "invalid project_id or region"})
+            return
 
         if self.path == "/api/initial-sync":
             # 0. Check if sendbird_source_us.chat_messages exists; if deleted by Cleanup, recreate source + 3 dest datasets!
@@ -210,7 +231,8 @@ class DemoRequestHandler(SimpleHTTPRequestHandler):
                 _, out_run, err_run = run_bq_cmd([
                     "bq", "mk", "--transfer_run",
                     f"--project_id={project_id}",
-                    f"--run_time={now_iso}",
+                    f"--start_time={now_iso}",
+                    f"--end_time={now_iso}",
                     cfg_name
                 ], timeout=20)
                 dts_log = f"[Real GCP DTS Run Triggered -> sendbird_dest_dts_kr]\n{cfg_name}\n{out_run or err_run}"
@@ -314,5 +336,5 @@ class DemoRequestHandler(SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8080"))
     server = HTTPServer(("0.0.0.0", port), DemoRequestHandler)
-    print(f"Sendbird BigQuery Live GCP Demo UI Server running at http://romij.c.googlers.com:{port}")
+    print(f"Sendbird BigQuery Live GCP Demo UI Server running at http://{socket.gethostname()}:{port}")
     server.serve_forever()

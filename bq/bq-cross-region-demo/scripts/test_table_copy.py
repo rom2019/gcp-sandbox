@@ -14,7 +14,7 @@ def parse_args():
     parser.add_argument("--project_id", required=True, help="Google Cloud Project ID")
     parser.add_argument("--source_dataset", default="sendbird_source_us", help="Source dataset name")
     parser.add_argument("--source_table", default="chat_messages", help="Source table name")
-    parser.add_argument("--dest_dataset", default="sendbird_dest_kr", help="Destination dataset name")
+    parser.add_argument("--dest_dataset", default="sendbird_dest_copy_kr", help="Destination dataset name")
     parser.add_argument("--dest_table", default="chat_messages_copied", help="Destination table name")
     parser.add_argument("--source_region", default="us-central1", help="Source region (e.g. us-central1)")
     parser.add_argument("--dest_region", default="asia-northeast3", help="Destination region (e.g. asia-northeast3)")

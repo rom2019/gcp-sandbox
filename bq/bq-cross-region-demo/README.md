@@ -65,7 +65,7 @@ export DEST_REGION="asia-northeast3" # 서울 리전
    ```
    - Source 리전(`us-central1`)에 `sendbird_source_us` 데이터셋 생성
    - 파티셔닝/클러스터링 적용된 `chat_messages` (10,000건) 및 `daily_channel_summary` 생성
-   - Target 리전(`asia-northeast3`)에 `sendbird_dest_kr` 데이터셋 생성
+   - Target 리전(`asia-northeast3`)에 솔루션별 목적지 데이터셋 3종 생성: `sendbird_dest_dts_kr`(DTS용), `sendbird_dest_copy_kr`(Table Copy용), `sendbird_dest_crr_kr`(웹 UI 데모용 뷰 저장소)
 
 2. **솔루션 1: BigQuery CRR (Cross-Region Dataset Replication) 테스트:**
    ```bash
@@ -82,7 +82,7 @@ export DEST_REGION="asia-northeast3" # 서울 리전
      --project_id="${PROJECT_ID}" \
      --source_dataset="sendbird_source_us" \
      --source_table="chat_messages" \
-     --dest_dataset="sendbird_dest_kr" \
+     --dest_dataset="sendbird_dest_copy_kr" \
      --dest_table="chat_messages_copied" \
      --source_region="us-central1" \
      --dest_region="asia-northeast3"

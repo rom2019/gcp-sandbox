@@ -7,7 +7,7 @@ set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || echo "")}"
 SOURCE_DATASET="${SOURCE_DATASET:-sendbird_source_us}"
-DEST_DATASET="${DEST_DATASET:-sendbird_dest_kr}"
+DEST_DATASET="${DEST_DATASET:-sendbird_dest_dts_kr}"
 DEST_REGION="${DEST_REGION:-asia-northeast3}"
 DISPLAY_NAME="Sendbird_Solution_Comparison_DTS_${DEST_REGION}"
 
@@ -37,7 +37,7 @@ TRANSFER_CONFIG_NAME=$(bq mk \
   --display_name="${DISPLAY_NAME}" \
   --target_dataset="${DEST_DATASET}" \
   --params="${PARAMS_JSON}" \
-  --location="${DEST_REGION}" 2>&1 | grep -o 'projects/[^ ]*' || echo "")
+  --location="${DEST_REGION}" 2>&1 | grep -oE "projects/[^ ']+" || echo "")
 
 if [[ -z "${TRANSFER_CONFIG_NAME}" ]]; then
   echo "Checking existing transfer configuration..."

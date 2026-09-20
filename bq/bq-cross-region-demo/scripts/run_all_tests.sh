@@ -10,8 +10,11 @@ export PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null |
 export SOURCE_REGION="${SOURCE_REGION:-us-central1}"
 export DEST_REGION="${DEST_REGION:-asia-northeast3}"
 export SOURCE_DATASET="${SOURCE_DATASET:-sendbird_source_us}"
-export DEST_DATASET="${DEST_DATASET:-sendbird_dest_kr}"
 export REPLICA_NAME="${REPLICA_NAME:-replica_kr}"
+# Each solution writes to its own dedicated destination dataset (see setup_environment.sh);
+# DTS and Table Copy must NOT share one, or their verification queries collide.
+DEST_DATASET_DTS="${DEST_DATASET_DTS:-sendbird_dest_dts_kr}"
+DEST_DATASET_COPY="${DEST_DATASET_COPY:-sendbird_dest_copy_kr}"
 
 echo "=================================================================="
 echo " Sendbird BigQuery Cross-Region Solutions Demo & Test Orchestrator"
@@ -50,14 +53,14 @@ case "${ACTION}" in
       --project_id="${PROJECT_ID}" \
       --source_dataset="${SOURCE_DATASET}" \
       --source_table="chat_messages" \
-      --dest_dataset="${DEST_DATASET}" \
+      --dest_dataset="${DEST_DATASET_COPY}" \
       --dest_table="chat_messages_copied" \
       --source_region="${SOURCE_REGION}" \
       --dest_region="${DEST_REGION}"
     ;;
   4)
     echo -e "\n>>> Running BigQuery DTS Dataset Copy Test..."
-    "${SCRIPT_DIR}/test_dts.sh"
+    DEST_DATASET="${DEST_DATASET_DTS}" "${SCRIPT_DIR}/test_dts.sh"
     ;;
   5)
     echo -e "\n>>> Running Cleanup..."

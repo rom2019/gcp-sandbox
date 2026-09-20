@@ -1,6 +1,8 @@
 -- =============================================================================
 -- Sendbird Solution Comparison: DTS Dataset Copy Verification
 -- Inspect transfer execution history, verify row parity, and check table schemas
+-- Manual reference query: replace @PLACEHOLDER@ tokens by hand before running.
+-- @DEST_DATASET@ -> sendbird_dest_dts_kr (the dataset test_dts.sh copies into)
 -- =============================================================================
 
 -- 1. Check Data Transfer Service execution history and status
@@ -33,7 +35,7 @@ SELECT
   table_name,
   is_partitioning_column,
   clustering_ordinal_position
-FROM `@PROJECT_ID@.@DEST_DATASET@.INFORMATION_SCHEMA.COLUMNS
+FROM `@PROJECT_ID@.@DEST_DATASET@.INFORMATION_SCHEMA.COLUMNS`
 WHERE table_name = 'chat_messages'
   AND (is_partitioning_column = 'YES' OR clustering_ordinal_position IS NOT NULL)
 ORDER BY clustering_ordinal_position;
