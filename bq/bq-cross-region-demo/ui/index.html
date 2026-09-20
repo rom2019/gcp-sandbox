@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sendbird BigQuery Cross-Region 솔루션 비교 데모</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+
+  <!-- ===================================================================== -->
+  <!-- 1. COMPACT HEADER & ACTION BAR (단일 상단 바)                         -->
+  <!-- ===================================================================== -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+      <!-- Left: Title & Source Dataset Status -->
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-extrabold text-sm">
+          BQ
+        </div>
+        <div>
+          <div class="flex items-center gap-2.5">
+            <h1 class="text-lg font-bold text-slate-900">Sendbird BigQuery 리전 간 복제 비교</h1>
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 mono">
+              US (us-central1) → Seoul (asia-northeast3)
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+            <span>미국 원본 (<code class="text-slate-700 font-semibold">sendbird_source_us.chat_messages</code>):</span>
+            <strong id="src-raw-rows" class="text-blue-700 text-sm mono">11,000 rows</strong>
+            <a href="https://console.cloud.google.com/bigquery?project=test-sendbird-cross-region-cp&ws=!1m4!1m3!3m2!1stest-sendbird-cross-region-cp!2ssendbird_source_us" target="_blank" rel="noopener" class="text-blue-600 hover:underline font-medium">
+              [원본 콘솔 ↗]
+            </a>
+          </p>
+        </div>
+      </div>
+
+      <!-- Right: 3 Essential Demo Buttons Only -->
+      <div class="flex flex-wrap items-center gap-2.5">
+        <button id="btn-sync" onclick="runInitialSync()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition">
+          <span>1. 전체 초기 동기화 (Sync All)</span>
+        </button>
+
+        <button id="btn-delta" onclick="runDeltaInsert()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition">
+          <span>2. 원본에 +500건 추가 (증분 테스트)</span>
+        </button>
+
+        <button onclick="fetchLiveGcpStatus()" class="px-3 py-2 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs border border-slate-300 flex items-center gap-1 cursor-pointer transition">
+          <span>🔄 새로고침</span>
+        </button>
+
+        <button id="btn-reset" onclick="resetResources()" class="px-3 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs border border-rose-200 flex items-center gap-1 cursor-pointer transition">
+          <span>🧹 리소스 초기화</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Thin Live Status Strip -->
+    <div class="bg-slate-900 text-slate-200 text-xs py-2 px-6">
+      <div class="max-w-7xl mx-auto flex items-center justify-between">
+        <span id="status-message">✅ GCP 프로젝트(test-sendbird-cross-region-cp)의 실시간 데이터셋 상태가 연결되었습니다.</span>
+        <span class="text-slate-400 mono hidden sm:inline">Project: test-sendbird-cross-region-cp</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================================================================== -->
+  <!-- 2. MAIN CONTENT: 3 SIMPLE SOLUTION CARDS                              -->
+  <!-- ===================================================================== -->
+  <main class="max-w-7xl mx-auto px-6 py-6 space-y-6">
+
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- ================================================================= -->
+      <!-- CARD 1: BigQuery DTS                                              -->
+      <!-- ================================================================= -->
+      <div id="card-dts" class="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 flex flex-col justify-between">
+        <div class="space-y-5">
+          <!-- Header -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                Beta · 비실시간 스케줄
+              </span>
+              <a href="https://console.cloud.google.com/bigquery?project=test-sendbird-cross-region-cp&ws=!1m4!1m3!3m2!1stest-sendbird-cross-region-cp!2ssendbird_dest_dts_kr" target="_blank" rel="noopener" class="text-xs font-semibold text-amber-700 hover:underline">
+                GCP 콘솔 열기 ↗
+              </a>
+            </div>
+            <h2 class="text-xl font-bold text-slate-900">1. BigQuery DTS</h2>
+            <p class="text-xs text-slate-500 mt-1">데이터셋 전체 일괄 복사 (Dataset Copy)</p>
+          </div>
+
+          <!-- Live Destination Status Box -->
+          <div class="p-4 rounded-xl bg-amber-50/70 border border-amber-200">
+            <div class="flex items-center justify-between text-xs text-amber-900 mb-1">
+              <span class="font-medium">서울 목적지 데이터셋</span>
+              <code class="font-bold">sendbird_dest_dts_kr</code>
+            </div>
+            <div class="flex items-baseline justify-between mt-2">
+              <span id="dts-rows" class="text-2xl font-extrabold text-slate-900 mono">10,500 rows</span>
+              <span id="dts-diff-badge" class="text-xs font-bold text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded">
+                ⚠️ -500건 미반영
+              </span>
+            </div>
+          </div>
+
+          <!-- Core Mechanism & Specs (No duplicate text) -->
+          <div class="space-y-3 text-xs border-t border-slate-100 pt-4">
+            <div class="flex justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500">동작 방식</span>
+              <span class="font-semibold text-slate-800">변경 시 테이블 전체 삭제 후 재전송</span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500">동기화 주기 (RPO)</span>
+              <span class="font-semibold text-slate-800">최소 12시간 ~ 24시간 배치</span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500">핵심 단점</span>
+              <span class="font-semibold text-rose-600">1건만 추가돼도 전체 용량 과금</span>
+            </div>
+            <div class="flex justify-between py-1">
+              <span class="text-slate-500">적합 용도</span>
+              <span class="font-semibold text-slate-800">일회성 리전 이관 / 비실시간 백업</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Summary Metric -->
+        <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+          <span class="text-xs text-slate-500">10TB 기준 월 예상 비용</span>
+          <span id="cost-dts" class="text-lg font-extrabold text-rose-600 mono">$31,232 / 월</span>
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- CARD 2: Cross-Region Table Copy                                   -->
+      <!-- ================================================================= -->
+      <div id="card-copy" class="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 flex flex-col justify-between">
+        <div class="space-y-5">
+          <!-- Header -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
+                Preview · 선택적 복사
+              </span>
+              <a href="https://console.cloud.google.com/bigquery?project=test-sendbird-cross-region-cp&ws=!1m4!1m3!3m2!1stest-sendbird-cross-region-cp!2ssendbird_dest_copy_kr" target="_blank" rel="noopener" class="text-xs font-semibold text-blue-700 hover:underline">
+                GCP 콘솔 열기 ↗
+              </a>
+            </div>
+            <h2 class="text-xl font-bold text-slate-900">2. Table Copy (bq cp)</h2>
+            <p class="text-xs text-slate-500 mt-1">지정한 핵심/요약 테이블만 개별 복사</p>
+          </div>
+
+          <!-- Live Destination Status Box -->
+          <div class="p-4 rounded-xl bg-blue-50/70 border border-blue-200">
+            <div class="flex items-center justify-between text-xs text-blue-900 mb-1">
+              <span class="font-medium">서울 목적지 데이터셋</span>
+              <code class="font-bold">sendbird_dest_copy_kr</code>
+            </div>
+            <div class="flex items-baseline justify-between mt-2">
+              <span id="copy-rows" class="text-2xl font-extrabold text-slate-900 mono">10,500 rows</span>
+              <span id="copy-diff-badge" class="text-xs font-bold text-blue-800 bg-blue-200/80 px-2 py-0.5 rounded">
+                ⚠️ -500건 미반영
+              </span>
+            </div>
+          </div>
+
+          <!-- Core Mechanism & Specs -->
+          <div class="space-y-3 text-xs border-t border-slate-100 pt-4">
+            <div class="flex justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500">동작 방식</span>
+              <span class="font-semibold text-slate-800">선택한 테이블만 스냅샷 덮어쓰기</span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500">동기화 주기 (RPO)</span>
+              <span class="font-semibold text-slate-800">Airflow 등 외부 스케줄러 주기</span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500">핵심 단점</span>
+              <span class="font-semibold text-slate-700">원천 대용량 테이블 전체 DR 불가</span>
+            </div>
+            <div class="flex justify-between py-1">
+              <span class="text-slate-500">적합 용도</span>
+              <span class="font-semibold text-slate-800">소용량 일별 집계 테이블 타 리전 공유</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Summary Metric -->
+        <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+          <span class="text-xs text-slate-500">요약 테이블(5%)만 복사 시</span>
+          <span id="cost-copy" class="text-lg font-extrabold text-blue-600 mono">$1,562 / 월</span>
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- CARD 3: BigQuery CRR (Recommended)                                -->
+      <!-- ================================================================= -->
+      <div id="card-crr" class="bg-white rounded-2xl border-2 border-emerald-500 shadow-md p-6 flex flex-col justify-between relative">
+        <div class="space-y-5">
+          <!-- Header -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-600 text-white">
+                ★ GA · 실시간 자동 복제 (권장)
+              </span>
+              <a href="https://console.cloud.google.com/bigquery?project=test-sendbird-cross-region-cp&ws=!1m4!1m3!3m2!1stest-sendbird-cross-region-cp!2ssendbird_dest_crr_kr" target="_blank" rel="noopener" class="text-xs font-semibold text-emerald-700 hover:underline">
+                GCP 콘솔 열기 ↗
+              </a>
+            </div>
+            <h2 class="text-xl font-bold text-slate-900">3. BigQuery CRR</h2>
+            <p class="text-xs text-slate-500 mt-1">스토리지 레벨 증분(Delta) 블록 자동 복제</p>
+          </div>
+
+          <!-- Live Destination Status Box -->
+          <div class="p-4 rounded-xl bg-emerald-50 border border-emerald-300">
+            <div class="flex items-center justify-between text-xs text-emerald-950 mb-1">
+              <span class="font-medium">서울 목적지 데이터셋</span>
+              <code class="font-bold">sendbird_dest_crr_kr</code>
+            </div>
+            <div class="flex items-baseline justify-between mt-2">
+              <span id="crr-rows" class="text-2xl font-extrabold text-emerald-700 mono">11,000 rows</span>
+              <span id="crr-diff-badge" class="text-xs font-bold text-emerald-900 bg-emerald-200 px-2 py-0.5 rounded">
+                ✨ 실시간 자동 반영
+              </span>
+            </div>
+          </div>
+
+          <!-- Core Mechanism & Specs -->
+          <div class="space-y-3 text-xs border-t border-slate-100 pt-4">
+            <div class="flex justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500">동작 방식</span>
+              <span class="font-bold text-emerald-700">변경된 압축 블록(Delta)만 자동 전송</span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500">동기화 주기 (RPO)</span>
+              <span class="font-bold text-emerald-700">수 초 ~ 수 분 내 백그라운드 동기화</span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500">핵심 장점</span>
+              <span class="font-semibold text-slate-800">별도 배치 없이 전체 테이블 실시간 복제</span>
+            </div>
+            <div class="flex justify-between py-1">
+              <span class="text-slate-500">적합 용도</span>
+              <span class="font-semibold text-slate-800">전사 DR 및 글로벌 리전 실시간 조회</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Summary Metric -->
+        <div class="mt-6 pt-4 border-t border-emerald-100 flex items-center justify-between">
+          <span class="text-xs font-semibold text-emerald-800">전체 10TB 복제 (일 2% 증분)</span>
+          <span id="cost-crr" class="text-lg font-extrabold text-emerald-700 mono">$1,126 / 월 (96% 절감)</span>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- 3. COMPACT COST CALCULATOR & VERIFICATION SQL (하단 2단 요약)         -->
+    <!-- =================================================================== -->
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- Left: Simple 2-Slider Cost Calculator -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col justify-between space-y-4">
+        <div>
+          <h3 class="text-sm font-bold text-slate-900">💰 Sendbird 데이터 규모별 월간 비용 계산기 (US → Seoul)</h3>
+          <p class="text-xs text-slate-500 mt-0.5">슬라이더를 움직이면 상단 3개 카드 하단의 예상 월 비용이 즉시 갱신됩니다.</p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+          <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+            <div class="flex justify-between text-xs font-semibold mb-2">
+              <span class="text-slate-600">원본 데이터셋 크기</span>
+              <span id="lbl-tb" class="text-blue-700 mono font-bold">10 TB</span>
+            </div>
+            <input id="slider-tb" type="range" min="1" max="100" value="10" oninput="updateCost()" class="w-full accent-blue-600 cursor-pointer" />
+          </div>
+
+          <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+            <div class="flex justify-between text-xs font-semibold mb-2">
+              <span class="text-slate-600">일일 신규/변경 비율 (Delta)</span>
+              <span id="lbl-delta" class="text-emerald-700 mono font-bold">2% / 일</span>
+            </div>
+            <input id="slider-delta" type="range" min="1" max="20" value="2" oninput="updateCost()" class="w-full accent-emerald-600 cursor-pointer" />
+          </div>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-slate-900 text-white flex items-center justify-between text-xs">
+          <span>💡 <strong>CRR 선택 시 절감 효과</strong> (전체 데이터셋 100% 복제 기준)</span>
+          <span id="saving-summary" class="font-bold text-emerald-400 mono">DTS 대비 월 $30,106 (96%) 절감</span>
+        </div>
+      </div>
+
+      <!-- Right: One-Click Verification SQL for GCP Console -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col justify-between space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-bold text-slate-900">🔍 GCP Console 검증용 통합 비교 SQL</h3>
+            <p class="text-xs text-slate-500 mt-0.5">BigQuery Studio에 붙여넣으면 서울 리전 3개 목적지의 건수를 한 번에 비교합니다.</p>
+          </div>
+          <button onclick="copyVerifySql()" id="btn-copy-sql" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs cursor-pointer transition">
+            📋 SQL 복사
+          </button>
+        </div>
+
+        <pre id="verify-sql" class="p-3.5 rounded-xl bg-slate-950 text-slate-200 text-[11px] mono overflow-x-auto leading-relaxed">SELECT '1. DTS (sendbird_dest_dts_kr)' AS solution, COUNT(*) AS row_count, MAX(created_at) AS latest_ts
+FROM `test-sendbird-cross-region-cp.sendbird_dest_dts_kr.chat_messages`
+UNION ALL
+SELECT '2. Table Copy (sendbird_dest_copy_kr)', COUNT(*), MAX(created_at)
+FROM `test-sendbird-cross-region-cp.sendbird_dest_copy_kr.chat_messages`
+UNION ALL
+SELECT '3. CRR (sendbird_dest_crr_kr)', COUNT(*), MAX(created_at)
+FROM `test-sendbird-cross-region-cp.sendbird_dest_crr_kr.chat_messages`
+ORDER BY solution;</pre>
+      </div>
+
+    </section>
+
+  </main>
+
+  <script>
+    const PROJECT_ID = 'test-sendbird-cross-region-cp';
+    const SRC_REGION = 'us-central1';
+    const DST_REGION = 'asia-northeast3';
+
+    function updateBadge(elId, diff, exists) {
+      const el = document.getElementById(elId);
+      if (!exists) {
+        el.className = 'text-xs font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded';
+        el.textContent = '🗑️ 리소스 삭제됨 (미생성)';
+      } else if (diff > 0) {
+        el.className = 'text-xs font-bold text-amber-900 bg-amber-200/90 px-2 py-0.5 rounded';
+        el.textContent = `⚠️ 원본 대비 -${diff.toLocaleString()}건 미반영`;
+      } else {
+        el.className = 'text-xs font-bold text-emerald-900 bg-emerald-200 px-2 py-0.5 rounded';
+        el.textContent = '✓ 원본과 100% 일치';
+      }
+    }
+
+    async function fetchLiveGcpStatus() {
+      const statusEl = document.getElementById('status-message');
+      statusEl.textContent = '🔄 실제 GCP BigQuery에서 3개 목적지(dts_kr, copy_kr, crr_kr)의 실시간 Row 수를 조회 중입니다...';
+
+      try {
+        const res = await fetch(`/api/live-status?project_id=${PROJECT_ID}&source_region=${SRC_REGION}&dest_region=${DST_REGION}`);
+        if (!res.ok) throw new Error('API Error');
+        const data = await res.json();
+
+        const exists = data.exists !== false && (data.source_rows > 0);
+        const srcRows = data.source_rows ?? 0;
+        const dtsRows = data.dts_rows ?? 0;
+        const copyRows = data.copy_rows ?? 0;
+        const crrRows = data.crr_rows ?? 0;
+
+        document.getElementById('src-raw-rows').textContent = exists
+          ? `${srcRows.toLocaleString()} rows`
+          : `0 rows (삭제됨)`;
+        document.getElementById('dts-rows').textContent = `${dtsRows.toLocaleString()} rows`;
+        document.getElementById('copy-rows').textContent = `${copyRows.toLocaleString()} rows`;
+        document.getElementById('crr-rows').textContent = `${crrRows.toLocaleString()} rows`;
+
+        updateBadge('dts-diff-badge', srcRows - dtsRows, exists && dtsRows > 0);
+        updateBadge('copy-diff-badge', srcRows - copyRows, exists && copyRows > 0);
+
+        const crrBadge = document.getElementById('crr-diff-badge');
+        if (!exists) {
+          crrBadge.className = 'text-xs font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded';
+          crrBadge.textContent = '🗑️ 리소스 삭제됨 (미생성)';
+          statusEl.textContent = '🗑️ [GCP 리소스 비어 있음] 모든 데이터셋이 삭제된 상태(0 rows)입니다. [1. 전체 초기 동기화]를 누르면 다시 생성됩니다.';
+        } else if (srcRows === crrRows) {
+          crrBadge.className = 'text-xs font-bold text-emerald-900 bg-emerald-200 px-2 py-0.5 rounded';
+          crrBadge.textContent = '✨ 실시간 자동 반영 완료';
+          statusEl.textContent = `✅ [실시간 GCP 조회 완료] 미국 원본(${srcRows.toLocaleString()}건) → DTS(${dtsRows.toLocaleString()}건) / Table Copy(${copyRows.toLocaleString()}건) / CRR(${crrRows.toLocaleString()}건)`;
+        } else {
+          crrBadge.className = 'text-xs font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded';
+          crrBadge.textContent = `🔄 백그라운드 복제 중 (${crrRows.toLocaleString()}건)`;
+          statusEl.textContent = `🔄 [CRR 복제 진행 중] 미국 원본(${srcRows.toLocaleString()}건) → 서울 복제본 동기화 중... 잠시 후 [새로고침]을 눌러주세요.`;
+        }
+      } catch (e) {
+        statusEl.textContent = '⚠️ GCP 상태 조회 중 오류가 발생했습니다.';
+      }
+    }
+
+    async function runInitialSync() {
+      const btn = document.getElementById('btn-sync');
+      const statusEl = document.getElementById('status-message');
+      btn.disabled = true;
+      btn.textContent = '⏳ 데이터셋 생성 및 3개 솔루션 동기화 중...';
+      statusEl.textContent = '🚀 [전체 초기 동기화] GCP에 원본(10,000건) 및 서울 3개 목적지(dts_kr, copy_kr, crr_kr)를 생성하고 복제 중입니다 (약 40~60초 소요)...';
+
+      try {
+        await fetch('/api/initial-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project_id: PROJECT_ID, source_region: SRC_REGION, dest_region: DST_REGION })
+        });
+        await fetchLiveGcpStatus();
+      } catch (e) {}
+
+      btn.disabled = false;
+      btn.textContent = '1. 전체 초기 동기화 (Sync All)';
+    }
+
+    async function runDeltaInsert() {
+      const btn = document.getElementById('btn-delta');
+      const statusEl = document.getElementById('status-message');
+      btn.disabled = true;
+      btn.textContent = '⏳ 원본 +500건 INSERT 중...';
+      statusEl.textContent = '⚡ [증분 테스트] 미국 원본(sendbird_source_us)에 신규 데이터 +500건을 INSERT 중입니다 (CRR만 자동 반영됨)...';
+
+      try {
+        await fetch('/api/delta-inject', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project_id: PROJECT_ID, source_region: SRC_REGION, dest_region: DST_REGION })
+        });
+        await fetchLiveGcpStatus();
+      } catch (e) {}
+
+      btn.disabled = false;
+      btn.textContent = '2. 원본에 +500건 추가 (증분 테스트)';
+    }
+
+    async function resetResources() {
+      const choice = prompt(
+        '리소스 초기화 옵션을 선택하세요:\n\n' +
+        '1 = 데모 데이터 초기화 (원본 및 3개 목적지 모두 초기 10,000건 상태로 리셋)\n' +
+        '2 = GCP 리소스 전체 삭제 (DTS 설정, CRR 복제본, 테스트 데이터셋 모두 제거)\n\n' +
+        '번호를 입력하세요 (기본값: 1):',
+        '1'
+      );
+      if (!choice) return;
+
+      const btn = document.getElementById('btn-reset');
+      const statusEl = document.getElementById('status-message');
+      btn.disabled = true;
+
+      if (choice.trim() === '2') {
+        btn.textContent = '⏳ 전체 삭제 중...';
+        statusEl.textContent = '🗑️ [전체 Cleanup] GCP 프로젝트의 DTS 설정, CRR 복제본, 데이터셋을 모두 삭제하고 있습니다...';
+        try {
+          await fetch('/api/cleanup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ project_id: PROJECT_ID })
+          });
+          await fetchLiveGcpStatus();
+        } catch (e) {}
+      } else {
+        btn.textContent = '⏳ 10,000건 리셋 중...';
+        statusEl.textContent = '🧹 [데모 초기화] 미국 원본 및 서울 3개 목적지의 증분 데이터를 삭제하여 초기 10,000건 상태로 리셋 중입니다...';
+        try {
+          await fetch('/api/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ project_id: PROJECT_ID, source_region: SRC_REGION, dest_region: DST_REGION })
+          });
+          await fetchLiveGcpStatus();
+        } catch (e) {}
+      }
+
+      btn.disabled = false;
+      btn.innerHTML = '<span>🧹 리소스 초기화</span>';
+    }
+
+    function updateCost() {
+      const tb = parseFloat(document.getElementById('slider-tb').value);
+      const deltaPct = parseFloat(document.getElementById('slider-delta').value);
+      document.getElementById('lbl-tb').textContent = `${tb} TB`;
+      document.getElementById('lbl-delta').textContent = `${deltaPct}% / 일`;
+
+      const physGiB = (tb / 4.0) * 1024; // 4:1 compression
+      const egressRate = 0.08; // US -> Seoul ($0.08/GiB)
+      const storageCost = physGiB * 0.04;
+
+      const dtsCost = Math.round((physGiB * 30 * 2 * egressRate) + storageCost); // 12h cycle (2x/day)
+      const copyCost = Math.round((physGiB * 0.05 * 30 * egressRate) + (storageCost * 0.05)); // 5% summary
+      const crrCost = Math.round((physGiB * (deltaPct / 100.0) * 30 * egressRate) + storageCost);
+
+      const saveCost = Math.max(0, dtsCost - crrCost);
+      const savePct = dtsCost > 0 ? Math.round((saveCost / dtsCost) * 100) : 0;
+
+      document.getElementById('cost-dts').textContent = `$${dtsCost.toLocaleString()} / 월`;
+      document.getElementById('cost-copy').textContent = `$${copyCost.toLocaleString()} / 월`;
+      document.getElementById('cost-crr').textContent = `$${crrCost.toLocaleString()} / 월 (${savePct}% 절감)`;
+      document.getElementById('saving-summary').textContent = `DTS 대비 월 $${saveCost.toLocaleString()} (${savePct}%) 절감`;
+    }
+
+    function copyVerifySql() {
+      const sql = document.getElementById('verify-sql').textContent;
+      navigator.clipboard.writeText(sql);
+      const btn = document.getElementById('btn-copy-sql');
+      btn.textContent = '✅ 복사 완료!';
+      setTimeout(() => { btn.textContent = '📋 SQL 복사'; }, 2000);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      updateCost();
+      fetchLiveGcpStatus();
+    });
+  </script>
+</body>
+</html>
