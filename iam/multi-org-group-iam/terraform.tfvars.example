@@ -1,0 +1,49 @@
+additional_org_id        = "123456789012" # Step 1에서 확인한 additional-domain.com의 숫자형 GCP ORG_ID
+# additional_customer_id = "C02xxxxxx"    # (선택) 생략 시 additional_org_id를 통해 Directory Customer ID 자동 조회
+additional_domain        = "additional-domain.com"
+main_login_domain        = "main-domain.com"
+seed_project_id          = "iam-seed-prod-01"
+tf_service_account_email = "tf-iam-admin@iam-seed-prod-01.iam.gserviceaccount.com"
+
+create_sample_folder       = true
+sample_folder_display_name = "app-dev"
+
+groups = {
+  users = {
+    email_prefix = "gcp-users"
+    display_name = "GCP All Users"
+    description  = "Grants Org Viewer and Browser so additional-domain.com appears in GCP Organization Switcher"
+    members = [
+      "cloud-admin@main-domain.com",
+      "app-dev1@main-domain.com",
+    ]
+    org_roles = [
+      "roles/resourcemanager.organizationViewer",
+      "roles/browser",
+    ]
+  }
+
+  org_admins = {
+    email_prefix = "gcp-org-admins"
+    display_name = "GCP Organization Admins"
+    description  = "Platform and Organization Administrators for additional-domain.com"
+    members      = ["cloud-admin@main-domain.com"]
+    managers     = ["cloud-admin@main-domain.com"]
+    org_roles = [
+      "roles/resourcemanager.organizationAdmin",
+      "roles/resourcemanager.folderAdmin",
+      "roles/resourcemanager.projectCreator",
+    ]
+  }
+
+  dev_team = {
+    email_prefix = "gcp-app-devs"
+    display_name = "GCP App Developers (Dev)"
+    description  = "Application developers scoped to the app-dev folder"
+    members      = ["app-dev1@main-domain.com"]
+    folder_roles = [
+      "roles/resourcemanager.folderViewer",
+      "roles/viewer",
+    ]
+  }
+}
