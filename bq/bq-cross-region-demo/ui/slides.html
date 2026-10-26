@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BigQuery 크로스 리전 아키텍처 가이드 & 솔루션 비교 (Fact-Checked Slides)</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #eef2f6;
+      color: #1f2937;
+      margin: 0;
+      padding: 0;
+    }
+    .slide-page {
+      width: 1280px;
+      min-height: 720px;
+      background: #ffffff;
+      margin: 28px auto;
+      border-radius: 16px;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.10);
+      border: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+      position: relative;
+    }
+    /* Vertical connector line between Q1..Q5 boxes */
+    .q-spine {
+      position: relative;
+    }
+    .q-spine::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      bottom: -14px;
+      width: 2px;
+      height: 14px;
+      background-color: #cbd5e1;
+      transform: translateX(-50%);
+      z-index: 1;
+    }
+    .q-spine-last::after {
+      display: none;
+    }
+    @media print {
+      body {
+        background: #ffffff;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .slide-page {
+        margin: 0;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        page-break-after: always;
+        width: 100%;
+        height: 100vh;
+      }
+    }
+  </style>
+</head>
+<body class="pb-12">
+
+  <!-- Top Toolbar (Navigation & Print) -->
+  <div class="no-print sticky top-0 z-50 bg-slate-900/95 backdrop-blur text-white px-6 py-3 flex items-center justify-between border-b border-slate-700 shadow-md">
+    <div class="flex items-center gap-3">
+      <span class="bg-blue-600 text-white text-xs font-bold px-2.5 py-1 rounded-md">FACT-CHECKED SLIDES</span>
+      <span class="font-bold text-sm tracking-tight">BigQuery 크로스 리전 아키텍처 선택 가이드 & 3대 솔루션 비교 (공식 문서 검증 반영본)</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="#slide-1" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold transition">Slide 1: 의사결정 트리</a>
+      <a href="#slide-2" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold transition">Slide 2: 3대 솔루션 비교</a>
+      <a href="#slide-3" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold transition">Slide 3: 공식 근거 링크</a>
+      <button onclick="window.print()" class="ml-2 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-bold transition shadow">
+        🖨️ PDF / 슬라이드 인쇄
+      </button>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- SLIDE 1: BigQuery 크로스 리전 아키텍처 선택 가이드 (Decision Tree) -->
+  <!-- ===================================================================== -->
+  <section id="slide-1" class="slide-page">
+    <div class="px-10 pt-7 pb-4 flex-1 flex flex-col justify-between">
+      
+      <!-- Header -->
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <h1 class="text-[28px] font-extrabold text-slate-900 tracking-tight leading-tight">
+            BigQuery 크로스 리전 아키텍처 선택 가이드
+          </h1>
+          <p class="text-[13.5px] text-slate-500 font-medium mt-0.5">
+            5개 질문으로 끝내는 기술 선정 · Decision Tree for Cross-Region Data Movement
+          </p>
+        </div>
+        <div class="bg-[#e8f0fe] border border-[#d2e3fc] text-[#1967d2] px-5 py-1.5 rounded-full text-[13px] font-bold tracking-tight shadow-xs">
+          Google Cloud · BigQuery
+        </div>
+      </div>
+
+      <!-- 5-Step Decision Tree Grid -->
+      <div class="flex flex-col gap-[11px] my-auto">
+
+        <!-- Q1 Row -->
+        <div class="grid grid-cols-12 items-center gap-3">
+          <!-- Left Question Box -->
+          <div class="col-span-4 q-spine bg-[#f8f9fa] border border-slate-300 rounded-xl px-4 py-3 flex items-center gap-3.5 h-[72px]">
+            <div class="w-7 h-7 rounded-full bg-slate-800 text-white text-xs font-extrabold flex items-center justify-center shrink-0">Q1</div>
+            <div class="text-[14px] font-bold text-slate-800 leading-snug">
+              대상 리전에 데이터를<br/>영구 저장해야 하는가?
+            </div>
+          </div>
+          <!-- Connector -->
+          <div class="col-span-1 flex items-center justify-center gap-1">
+            <span class="bg-[#5f6368] text-white text-[10.5px] font-extrabold px-2.5 py-0.5 rounded-full">NO</span>
+            <span class="text-slate-500 font-bold text-sm">→</span>
+          </div>
+          <!-- Right Outcome Box -->
+          <div class="col-span-7 bg-[#fef2f2] border-[1.5px] border-[#dc2626] rounded-xl px-5 py-3 flex items-center justify-between h-[72px]">
+            <div>
+              <div class="text-[15.5px] font-extrabold text-[#b91c1c]">Global Queries (Cross-Region SQL)</div>
+              <div class="text-[12px] text-slate-600 mt-0.5 font-medium">
+                사전 복제 없이 즉시 조인(실행 시 원격 결과 임시 전송·24h 보관) · <code class="bg-red-100/80 text-red-900 px-1 rounded text-[11px]">ALTER PROJECT</code> 옵션 활성화 필수 · Copy Job당 100 GB 상한
+              </div>
+            </div>
+            <span class="bg-[#dc2626] text-white text-[11px] font-extrabold px-3 py-1 rounded-md shrink-0 tracking-wide">PREVIEW</span>
+          </div>
+        </div>
+
+        <!-- Q2 Row -->
+        <div class="grid grid-cols-12 items-center gap-3">
+          <!-- Left Question Box -->
+          <div class="col-span-4 q-spine bg-[#f8f9fa] border border-slate-300 rounded-xl px-4 py-3 flex items-center gap-3.5 h-[78px]">
+            <div class="w-7 h-7 rounded-full bg-slate-800 text-white text-xs font-extrabold flex items-center justify-center shrink-0">Q2</div>
+            <div>
+              <div class="text-[13.5px] font-bold text-slate-800 leading-snug">
+                타겟 리전에서 쓰기·가공 없이<br/>읽기 전용 소비로 충분한가?
+              </div>
+              <div class="text-[11px] text-slate-500 mt-0.5">DR 목적이 아니어도 무방</div>
+            </div>
+          </div>
+          <!-- Connector -->
+          <div class="col-span-1 flex items-center justify-center gap-1">
+            <span class="bg-[#188038] text-white text-[10.5px] font-extrabold px-2.5 py-0.5 rounded-full">YES</span>
+            <span class="text-emerald-700 font-bold text-sm">→</span>
+          </div>
+          <!-- Right Outcome Box -->
+          <div class="col-span-7 bg-[#f3f4f6] border-[1.5px] border-[#6b7280] rounded-xl px-5 py-3 flex items-center justify-between h-[78px]">
+            <div>
+              <div class="text-[15px] font-extrabold text-slate-800">Dataset Replication (CRR) 계열로 진입</div>
+              <div class="text-[12px] text-slate-600 mt-0.5 font-medium">
+                DR뿐 아니라 <span class="font-bold text-slate-800">읽기 전용 리전 집결(Co-location)</span> 용도로도 유효 · Secondary는 승격 전까지 Read-Only <span class="font-bold text-slate-800">→ Q3에서 티어 결정</span>
+              </div>
+            </div>
+            <span class="bg-[#15803d] text-white text-[11px] font-extrabold px-3 py-1 rounded-md shrink-0 tracking-wide">GA</span>
+          </div>
+        </div>
+
+        <!-- Q3 Row (Dual Branch: Managed DR vs Standard CRR) -->
+        <div class="grid grid-cols-12 items-center gap-3">
+          <!-- Left Question Box -->
+          <div class="col-span-4 q-spine bg-[#f8f9fa] border border-slate-300 rounded-xl px-4 py-3 flex items-center gap-3.5 h-[112px]">
+            <div class="w-7 h-7 rounded-full bg-slate-800 text-white text-xs font-extrabold flex items-center justify-center shrink-0">Q3</div>
+            <div>
+              <div class="text-[13.5px] font-bold text-slate-800 leading-snug">
+                Primary 전면 장애 시 즉각 Failover<br/>및 15분 RPO·5분 RTO가 필수인가?
+              </div>
+              <div class="text-[11px] text-slate-500 mt-0.5">금융 · 미션 크리티컬 DR (동일 대륙 권역 내)</div>
+            </div>
+          </div>
+          <!-- Connectors (YES / NO stacked) -->
+          <div class="col-span-1 flex flex-col justify-between h-[112px] py-2.5 items-center">
+            <div class="flex items-center gap-1">
+              <span class="bg-[#188038] text-white text-[10.5px] font-extrabold px-2.5 py-0.5 rounded-full">YES</span>
+              <span class="text-emerald-700 font-bold text-sm">→</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <span class="bg-[#5f6368] text-white text-[10.5px] font-extrabold px-2.5 py-0.5 rounded-full">NO</span>
+              <span class="text-slate-500 font-bold text-sm">→</span>
+            </div>
+          </div>
+          <!-- Right Outcome Boxes (Stacked) -->
+          <div class="col-span-7 flex flex-col gap-2 h-[112px] justify-between">
+            <!-- YES: Managed DR (Turbo Replication) -->
+            <div class="bg-[#f0fdf4] border-[1.5px] border-[#15803d] rounded-xl px-5 py-2 flex items-center justify-between h-[52px]">
+              <div>
+                <div class="text-[13.5px] font-extrabold text-[#166534]">Managed Disaster Recovery — Turbo Replication 기반</div>
+                <div class="text-[11.5px] text-slate-600 font-medium">
+                  15분 RPO · 5분 RTO 목표 · Primary 장애 시 Hard Failover · <span class="font-semibold text-slate-800">Enterprise Plus 필수 &amp; 동일 권역 페어 한정(US↔KR 불가)</span>
+                </div>
+              </div>
+              <span class="bg-[#15803d] text-white text-[11px] font-extrabold px-2.5 py-0.5 rounded-md shrink-0">GA</span>
+            </div>
+            <!-- NO: Standard CRR -->
+            <div class="bg-[#f0fdf4] border-[1.5px] border-dashed border-[#16a34a] rounded-xl px-5 py-2 flex items-center justify-between h-[52px]">
+              <div>
+                <div class="text-[13.5px] font-extrabold text-[#166534]">Cross-Region Dataset Replication — Standard CRR</div>
+                <div class="text-[11.5px] text-slate-600 font-medium">
+                  연속 비동기 블록 델타 복제 · 에디션/대륙 무관(US↔KR 가능) · <span class="font-semibold text-amber-900">※Primary 생존 시에만 승격(Soft Promotion) 가능</span>
+                </div>
+              </div>
+              <span class="bg-[#dcfce7] text-[#166534] border border-[#86efac] text-[11px] font-extrabold px-2.5 py-0.5 rounded-md shrink-0">GA</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Q4 Row -->
+        <div class="grid grid-cols-12 items-center gap-3">
+          <!-- Left Question Box -->
+          <div class="col-span-4 q-spine bg-[#f8f9fa] border border-slate-300 rounded-xl px-4 py-3 flex items-center gap-3.5 h-[78px]">
+            <div class="w-7 h-7 rounded-full bg-slate-800 text-white text-xs font-extrabold flex items-center justify-center shrink-0">Q4</div>
+            <div class="text-[14px] font-bold text-slate-800 leading-snug">
+              데이터셋 전체 단위<br/>정기 스케줄 배치 복사인가?
+            </div>
+          </div>
+          <!-- Connector -->
+          <div class="col-span-1 flex items-center justify-center gap-1">
+            <span class="bg-[#188038] text-white text-[10.5px] font-extrabold px-2.5 py-0.5 rounded-full">YES</span>
+            <span class="text-emerald-700 font-bold text-sm">→</span>
+          </div>
+          <!-- Right Outcome Box -->
+          <div class="col-span-7 bg-[#eff6ff] border-[1.5px] border-[#2563eb] rounded-xl px-5 py-3 flex items-center justify-between h-[78px]">
+            <div>
+              <div class="text-[15px] font-extrabold text-[#1d4ed8]">BigQuery Data Transfer Service (DTS — Copy Datasets)</div>
+              <div class="text-[12px] text-slate-600 mt-0.5 font-medium">
+                데이터셋 단위 스케줄 배치(최소 주기 12h, 1회 Run 최대 1,000 테이블) · Pub/Sub·Email 알림 · <span class="font-semibold text-slate-800">별도 가공 테이블 Write 가능(복제본 수정 시 덮어써짐)</span>
+              </div>
+            </div>
+            <span class="bg-[#4f46e5] text-white text-[11px] font-extrabold px-3 py-1 rounded-md shrink-0 tracking-wide">PREVIEW (Beta)</span>
+          </div>
+        </div>
+
+        <!-- Q5 Row (Dual Branch: CRTC bq cp vs CRR Backfill / GCS STS) -->
+        <div class="grid grid-cols-12 items-center gap-3">
+          <!-- Left Question Box -->
+          <div class="col-span-4 q-spine-last bg-[#f8f9fa] border border-slate-300 rounded-xl px-4 py-3 flex items-center gap-3.5 h-[112px]">
+            <div class="w-7 h-7 rounded-full bg-slate-800 text-white text-xs font-extrabold flex items-center justify-center shrink-0">Q5</div>
+            <div>
+              <div class="text-[13.5px] font-bold text-slate-800 leading-snug">
+                단일 테이블 물리 크기가<br/>1 TiB 미만(상한 20 TiB)인가?
+              </div>
+              <div class="text-[11px] text-slate-500 mt-0.5">단일 테이블 1:1 스냅샷 이관</div>
+            </div>
+          </div>
+          <!-- Connectors (YES / NO stacked) -->
+          <div class="col-span-1 flex flex-col justify-between h-[112px] py-2.5 items-center">
+            <div class="flex items-center gap-1">
+              <span class="bg-[#188038] text-white text-[10.5px] font-extrabold px-2.5 py-0.5 rounded-full">YES</span>
+              <span class="text-emerald-700 font-bold text-sm">→</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <span class="bg-[#5f6368] text-white text-[10.5px] font-extrabold px-2.5 py-0.5 rounded-full">NO</span>
+              <span class="text-slate-500 font-bold text-sm">→</span>
+            </div>
+          </div>
+          <!-- Right Outcome Boxes (Stacked) -->
+          <div class="col-span-7 flex flex-col gap-2 h-[112px] justify-between">
+            <!-- YES: Native Table Copy -->
+            <div class="bg-[#fffbeb] border-[1.5px] border-[#f59e0b] rounded-xl px-5 py-2 flex items-center justify-between h-[52px]">
+              <div>
+                <div class="text-[13.5px] font-extrabold text-[#b45309]">Native Table Copy (CRTC) · <code class="font-mono">bq cp</code></div>
+                <div class="text-[11.5px] text-slate-600 font-medium">
+                  단일 테이블 1회성 애드혹 이관(CLI/API 전용) · 개발/PoC 환경 구축 · <span class="font-semibold text-slate-800">※내부 CRR 백엔드 교체로 최대 30 TB 지원 롤아웃 완료</span>
+                </div>
+              </div>
+              <span class="bg-[#f59e0b] text-slate-950 text-[11px] font-extrabold px-2.5 py-0.5 rounded-md shrink-0">PREVIEW</span>
+            </div>
+            <!-- NO: CRR Temp Backfill or GCS Export -> STS -->
+            <div class="bg-[#f3f4f6] border-[1.5px] border-[#6b7280] rounded-xl px-5 py-2 flex items-center justify-between h-[52px]">
+              <div>
+                <div class="text-[13.5px] font-extrabold text-slate-800">CRR 일시 적용 후 Replica 분리 (또는 GCS Export → STS → BQ Load)</div>
+                <div class="text-[11.5px] text-slate-600 font-medium">
+                  공식 문서상 물리 1 TiB 초과 테이블은 <code class="font-mono">bq cp</code> 다중 재시도 필요(20 TiB 상한) · 초대형 이관은 CRR 무중단 백필 후 분리 권장
+                </div>
+              </div>
+              <span class="bg-[#4b5563] text-white text-[11px] font-extrabold px-2.5 py-0.5 rounded-md shrink-0">1 TiB+</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Bottom Decision Rule Banner -->
+    <div class="bg-[#1e2329] text-white px-10 py-3.5 flex items-center gap-4 text-[13px]">
+      <span class="text-[#60a5fa] font-extrabold tracking-wider text-xs shrink-0">DECISION RULE</span>
+      <div class="font-medium text-slate-200 truncate">
+        갈림길은 <span class="text-[#facc15] font-bold">타겟에서 쓰기가 필요한가</span> — 불필요하면 <span class="text-[#facc15] font-bold">CRR</span>(대륙 무관 Standard / Enterprise+ Managed DR), 필요하면 <span class="text-[#facc15] font-bold">DTS</span>(데이터셋 정기 배치, Beta) 또는 <span class="text-[#facc15] font-bold">CRTC</span>(단일 테이블 1회성, Preview) · 초대형은 <span class="text-[#facc15] font-bold">CRR 일시 백필</span>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===================================================================== -->
+  <!-- SLIDE 2: 3대 솔루션 상세 비교 (3-Column Cards Matching Uploaded Style) -->
+  <!-- ===================================================================== -->
+  <section id="slide-2" class="slide-page">
+    <div class="px-9 pt-6 pb-6 flex-1 flex flex-col justify-between">
+
+      <!-- Top Spectrum Header Bar -->
+      <div class="grid grid-cols-3 rounded-xl overflow-hidden border border-slate-200/80 mb-4 text-center py-2.5 text-[13.5px] font-extrabold tracking-tight"
+           style="background: linear-gradient(90deg, #e6f4ea 0%, #e8f0fe 50%, #fef7e0 100%);">
+        <div class="text-[#137333]">연속 복제 (Continuous)</div>
+        <div class="text-[#1967d2]">배치 복제 (Scheduled)</div>
+        <div class="text-[#b06000]">단발 복사 (Ad-hoc)</div>
+      </div>
+
+      <!-- 3 Columns Grid -->
+      <div class="grid grid-cols-3 gap-5 flex-1">
+
+        <!-- ================= CARD 1: Dataset Replication (Green) ================= -->
+        <div class="border-[2px] border-[#15803d] rounded-2xl flex flex-col justify-between overflow-hidden bg-white shadow-xs">
+          <div>
+            <!-- Colored Header -->
+            <div class="bg-[#15803d] text-white px-5 py-4">
+              <div class="text-[21px] font-extrabold tracking-tight">Dataset Replication</div>
+              <div class="text-[12.5px] text-emerald-100 font-medium mt-0.5">
+                스토리지 레벨 Active-Passive 연속 복제 (CRR &amp; Managed DR)
+              </div>
+            </div>
+
+            <!-- Badges Row -->
+            <div class="px-5 py-3 border-b border-slate-200 flex flex-wrap gap-1.5 bg-slate-50/50">
+              <span class="bg-slate-100 border border-slate-300 text-slate-800 text-[11px] font-extrabold px-2.5 py-0.5 rounded-md">GA</span>
+              <span class="bg-emerald-50 border border-emerald-300 text-emerald-800 text-[11px] font-bold px-2.5 py-0.5 rounded-md">Managed DR: 15분 RPO·5분 RTO 목표</span>
+              <span class="bg-slate-100 border border-slate-300 text-slate-700 text-[11px] font-bold px-2.5 py-0.5 rounded-md">Secondary Read-Only</span>
+            </div>
+
+            <!-- Pros & Cons Body -->
+            <div class="px-5 py-3.5 space-y-3 text-[12.5px] leading-relaxed">
+              <div>
+                <div class="text-[#15803d] font-extrabold text-[13px] mb-1.5">장점</div>
+                <ul class="space-y-1.5 text-slate-700">
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#15803d] font-extrabold">+</span>
+                    <span><strong class="text-slate-900">복제 작업(Job) 계층 자체가 없음</strong> — PENDING 고착·취소 API 부재 문제 구조적 제거</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#15803d] font-extrabold">+</span>
+                    <span><strong class="text-slate-900">블록 단위 델타 복제</strong> — 대형 파티션 테이블일수록 Egress 절감 <span class="text-slate-500 text-[11.5px]">(※날짜 샤딩 구조는 DTS도 변경 샤드만 복사해 DTS 대비 절감 격차 축소)</span></span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#15803d] font-extrabold">+</span>
+                    <span>복제에 <strong class="text-slate-900">쿼리 슬롯 0 소모</strong> (Colossus 백그라운드 전담)</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#15803d] font-extrabold">+</span>
+                    <span><strong class="text-slate-900">Managed DR(Enterprise+)</strong> 구성 시 RTO 5분 내 슬롯·스토리지 승격 · 멀티리전 10 PB / 단일 리전 500 TB+ 확장</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#15803d] font-extrabold">+</span>
+                    <span><code class="bg-slate-100 px-1 rounded text-[11.5px] font-mono">dataset_staleness</code> 지표로 복제 지연 실시간 관측</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="pt-1">
+                <div class="text-[#dc2626] font-extrabold text-[13px] mb-1.5">단점</div>
+                <ul class="space-y-1.5 text-slate-700">
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#dc2626] font-extrabold">−</span>
+                    <span>Secondary는 승격 전까지 <strong class="text-slate-900">엄격한 Read-Only</strong> <span class="text-slate-500 text-[11.5px]">(Standard CRR은 Primary 생존 시에만 승격 가능, Primary 장애 시 Hard Failover는 Managed DR 전용)</span></span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#dc2626] font-extrabold">−</span>
+                    <span>Policy Tag 및 연결된 Data Policy는 <strong class="text-slate-900">복제 제외</strong></span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#dc2626] font-extrabold">−</span>
+                    <span>스트리밍(Write API/insertAll) · CDC 적재는 복제가 <strong class="text-slate-900">Best-Effort</strong></span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#dc2626] font-extrabold">−</span>
+                    <span>대상 리전 <strong class="text-slate-900">KMS(CMEK) 듀얼 프로비저닝</strong>(<code class="font-mono text-[11px]">replica_kms_key</code>) 필수 및 BigLake/Fine-grained DML 미지원</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Best Fit Footer -->
+          <div class="px-5 py-3 bg-slate-50 border-t border-slate-200">
+            <div class="text-[10.5px] font-extrabold text-slate-400 tracking-wider uppercase">BEST FIT</div>
+            <div class="text-[13px] font-extrabold text-[#15803d] mt-0.5">
+              미션 크리티컬 DR + 읽기 전용 리전 집결(Co-location)
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= CARD 2: Data Transfer Service (Blue) ================= -->
+        <div class="border-[2px] border-[#1d4ed8] rounded-2xl flex flex-col justify-between overflow-hidden bg-white shadow-xs">
+          <div>
+            <!-- Colored Header -->
+            <div class="bg-[#1d4ed8] text-white px-5 py-4">
+              <div class="text-[21px] font-extrabold tracking-tight">Data Transfer Service</div>
+              <div class="text-[12.5px] text-blue-100 font-medium mt-0.5">
+                데이터셋 단위 관리형 스케줄 배치 복제 (<code class="font-mono">cross_region_copy</code>)
+              </div>
+            </div>
+
+            <!-- Badges Row -->
+            <div class="px-5 py-3 border-b border-slate-200 flex flex-wrap gap-1.5 bg-slate-50/50">
+              <span class="bg-indigo-100 border border-indigo-300 text-indigo-900 text-[11px] font-extrabold px-2.5 py-0.5 rounded-md">PREVIEW (Beta)</span>
+              <span class="bg-slate-100 border border-slate-300 text-slate-700 text-[11px] font-bold px-2.5 py-0.5 rounded-md">최소 주기 12h (수동 실행 가능)</span>
+              <span class="bg-slate-100 border border-slate-300 text-slate-700 text-[11px] font-bold px-2.5 py-0.5 rounded-md">별도 테이블 Write 가능</span>
+            </div>
+
+            <!-- Pros & Cons Body -->
+            <div class="px-5 py-3.5 space-y-3 text-[12.5px] leading-relaxed">
+              <div>
+                <div class="text-[#15803d] font-extrabold text-[13px] mb-1.5">장점</div>
+                <ul class="space-y-1.5 text-slate-700">
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#15803d] font-extrabold">+</span>
+                    <span>데이터셋 내 테이블 <strong class="text-slate-900">일괄 스케줄 동기화</strong> (크로스 리전 1회 Run당 최대 1,000개 테이블 복사, 미변경 테이블 자동 스킵)</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#15803d] font-extrabold">+</span>
+                    <span>타겟이 <strong class="text-slate-900">독립 일반 데이터셋</strong> — 타겟 내 별도 파생/스테이징 테이블 생성 및 DML·DDL·변환 자유</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#15803d] font-extrabold">+</span>
+                    <span>Email · Pub/Sub 알림 연동 기본 내장, 서버리스 스케줄 관리</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="pt-1">
+                <div class="text-[#dc2626] font-extrabold text-[13px] mb-1.5">단점</div>
+                <ul class="space-y-1.5 text-slate-700">
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#dc2626] font-extrabold">−</span>
+                    <span><strong class="text-slate-900">Copy datasets 기능은 현재 Beta</strong> (26Q4~27Q1 GA 목표) 및 개별 테이블 선택 필터 미지원(데이터셋 통째 복사만 가능)</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#dc2626] font-extrabold">−</span>
+                    <span>변경된 테이블은 <strong class="text-slate-900">전체 재전송(Truncate &amp; Replace)</strong> — 행 단위 증분 아님 <span class="text-slate-500 text-[11.5px]">(※복제본 직접 수정 시 다음 배치에 데이터·스키마 덮어써짐)</span></span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#dc2626] font-extrabold">−</span>
+                    <span><strong class="text-slate-900">하위 Copy Job 일괄 취소 미흡</strong> — Pending 고착 시 개별 <code class="font-mono text-[11px]">bq cancel</code> 수동 대응 필요</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#dc2626] font-extrabold">−</span>
+                    <span><strong class="text-slate-900">뷰(View) · 루틴(UDF) · 외부(External) 테이블</strong> 복제 제외</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#dc2626] font-extrabold">−</span>
+                    <span>크로스 리전 <strong class="text-slate-900">CDC 테이블 및 Policy Tag 테이블</strong> 복사 불가</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Best Fit Footer -->
+          <div class="px-5 py-3 bg-slate-50 border-t border-slate-200">
+            <div class="text-[10.5px] font-extrabold text-slate-400 tracking-wider uppercase">BEST FIT</div>
+            <div class="text-[13px] font-extrabold text-[#1d4ed8] mt-0.5">
+              데이터 메시 일일 배치 공유 · 가공형 스테이징
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= CARD 3: Native Table Copy (Amber) ================= -->
+        <div class="border-[2px] border-[#ea8600] rounded-2xl flex flex-col justify-between overflow-hidden bg-white shadow-xs">
+          <div>
+            <!-- Colored Header -->
+            <div class="bg-[#ea8600] text-white px-5 py-4">
+              <div class="text-[21px] font-extrabold tracking-tight">Native Table Copy</div>
+              <div class="text-[12.5px] text-amber-100 font-medium mt-0.5">
+                단일 테이블 1:1 애드혹 스냅샷 복사 (<code class="font-mono">bq cp</code>, CRTC)
+              </div>
+            </div>
+
+            <!-- Badges Row -->
+            <div class="px-5 py-3 border-b border-slate-200 flex flex-wrap gap-1.5 bg-slate-50/50">
+              <span class="bg-amber-100 border border-amber-300 text-amber-900 text-[11px] font-extrabold px-2.5 py-0.5 rounded-md">PREVIEW</span>
+              <span class="bg-slate-100 border border-slate-300 text-slate-700 text-[11px] font-bold px-2.5 py-0.5 rounded-md">공식 20 TiB 상한 (1 TiB+ 재시도)</span>
+              <span class="bg-slate-100 border border-slate-300 text-slate-700 text-[11px] font-bold px-2.5 py-0.5 rounded-md">타겟 Write 가능</span>
+            </div>
+
+            <!-- Pros & Cons Body -->
+            <div class="px-5 py-3.5 space-y-3 text-[12.5px] leading-relaxed">
+              <div>
+                <div class="text-[#15803d] font-extrabold text-[13px] mb-1.5">장점</div>
+                <ul class="space-y-1.5 text-slate-700">
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#15803d] font-extrabold">+</span>
+                    <span>명령어 <strong class="text-slate-900">1줄(<code class="font-mono text-[11.5px]">bq cp</code>)로 단일 테이블 즉시 실행</strong>, 학습·구축 비용 최소</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#15803d] font-extrabold">+</span>
+                    <span>타겟은 <strong class="text-slate-900">완전 독립 테이블</strong> — 복제 직후 즉시 쓰기(DML/DDL)·스키마 변경·가공 가능</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#15803d] font-extrabold">+</span>
+                    <span>필요한 테이블만 골라 일회성 Egress 발생 (기본 일 2,000회 / 테이블당 일 100회 쿼터)</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="pt-1">
+                <div class="text-[#dc2626] font-extrabold text-[13px] mb-1.5">단점</div>
+                <ul class="space-y-1.5 text-slate-700">
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#dc2626] font-extrabold">−</span>
+                    <span><strong class="text-slate-900">퍼블릭 문서상 Preview 상태</strong> — 공식 SLA 미보장 <span class="text-slate-500 text-[11.5px]">(※내부 백엔드는 26년 7월 CRR 엔진 기반 최대 30 TB·1 Gbps로 전환 완료)</span></span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#dc2626] font-extrabold">−</span>
+                    <span><strong class="text-slate-900">작업 완료 전 취소(<code class="font-mono text-[11px]">bq cancel</code>) 시에도 과금 부과</strong> — 이미 전송된 데이터에 대한 크로스 리전 복제 요금 청구됨</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#dc2626] font-extrabold">−</span>
+                    <span>공식 문서상 <strong class="text-slate-900">물리 20 TiB 초과 복사 불가</strong> 및 <strong class="text-slate-900">1 TiB 초과 시 다중 재시도 필요</strong> 명시</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                    <span class="text-[#dc2626] font-extrabold">−</span>
+                    <span><strong class="text-slate-900">Cloud Console UI 및 SQL(<code class="font-mono text-[11px]">CREATE TABLE COPY</code>) 미지원</strong> (CLI/API 전용), Append 모드 및 Policy Tag 복사 불가</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Best Fit Footer -->
+          <div class="px-5 py-3 bg-slate-50 border-t border-slate-200">
+            <div class="text-[10.5px] font-extrabold text-slate-400 tracking-wider uppercase">BEST FIT</div>
+            <div class="text-[13px] font-extrabold text-[#b45309] mt-0.5">
+              개발·PoC 환경의 소규모/단일 테이블 선별 이관
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===================================================================== -->
+  <!-- SLIDE 3: 항목별 팩트체크 교정 내역 및 공식 근거 링크 (Reference Slide) -->
+  <!-- ===================================================================== -->
+  <section id="slide-3" class="slide-page">
+    <div class="px-10 pt-7 pb-6 flex-1 flex flex-col justify-between">
+      <div>
+        <div class="flex items-start justify-between mb-4">
+          <div>
+            <h2 class="text-[25px] font-extrabold text-slate-900 tracking-tight">
+              슬라이드 팩트체크 교정 요약 및 공식 문서 근거 링크
+            </h2>
+            <p class="text-[13px] text-slate-500 font-medium mt-0.5">
+              Google Cloud 공식 문서(DevSite) 및 사내 엔지니어링 트래킹(Buganizer / Launch) 검증 레퍼런스
+            </p>
+          </div>
+          <div class="bg-slate-900 text-white px-4 py-1.5 rounded-full text-xs font-bold">
+            Official Documentation Citations
+          </div>
+        </div>
+
+        <div class="overflow-hidden border border-slate-200 rounded-xl shadow-2xs">
+          <table class="w-full text-left border-collapse text-[12px]">
+            <thead>
+              <tr class="bg-slate-800 text-white font-bold">
+                <th class="py-2.5 px-3.5 w-[18%]">구분 / 항목</th>
+                <th class="py-2.5 px-3.5 w-[26%]">기존 초안의 부정확/오해 소지 표현</th>
+                <th class="py-2.5 px-3.5 w-[32%]">교정된 정확한 팩트 (슬라이드 반영 완료)</th>
+                <th class="py-2.5 px-3.5 w-[24%]">공식 문서 및 사내 근거 링크</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 bg-white">
+              <tr class="hover:bg-slate-50">
+                <td class="py-2.5 px-3.5 font-bold text-red-700">Q1. Global Queries<br/>(Cross-Region SQL)</td>
+                <td class="py-2.5 px-3.5 text-slate-600">
+                  • <code class="bg-slate-100 px-1 rounded">복제 없이 즉시 조인</code><br/>
+                  • <code class="bg-slate-100 px-1 rounded">SET @@location 지정</code>만 언급
+                </td>
+                <td class="py-2.5 px-3.5 text-slate-800">
+                  • 실행 시 원격 서브쿼리 결과를 <strong>Primary 리전 임시 테이블로 전송·24시간 보관</strong>하며 <strong>Data Replication 전송비 + 24h 스토리지 과금</strong> 발생<br/>
+                  • <code class="bg-slate-100 px-1 rounded">ALTER PROJECT SET OPTIONS</code>로 실행/데이터 접근 옵션 사전 활성화 필수 (단일 Copy Job 100 GB 상한)
+                </td>
+                <td class="py-2.5 px-3.5">
+                  <a href="https://cloud.google.com/bigquery/docs/global-queries" target="_blank" class="text-blue-600 hover:underline font-semibold block">🔗 Global queries 공식 문서</a>
+                  <a href="https://cloud.google.com/bigquery/quotas#query_jobs" target="_blank" class="text-blue-600 hover:underline font-semibold block mt-0.5">🔗 Query jobs Quotas (100 GB)</a>
+                </td>
+              </tr>
+
+              <tr class="hover:bg-slate-50">
+                <td class="py-2.5 px-3.5 font-bold text-emerald-700">Q2 &amp; Q3. CRR vs<br/>Managed DR (Turbo)</td>
+                <td class="py-2.5 px-3.5 text-slate-600">
+                  • Q2 배지 <code class="bg-slate-100 px-1 rounded">[CRR]</code> 표기<br/>
+                  • <code class="bg-slate-100 px-1 rounded">Dataset Replication — Turbo Mode</code><br/>
+                  • <code class="bg-slate-100 px-1 rounded">Standard Mode = 비용 최적화 DR</code>
+                </td>
+                <td class="py-2.5 px-3.5 text-slate-800">
+                  • Q2 배지를 출시 단계인 <strong><code class="text-emerald-700">[GA]</code></strong>로 통일<br/>
+                  • 15분 RPO·5분 RTO 및 Primary 장애 시 <strong>Hard Failover는 <code class="text-emerald-700">Managed DR (Enterprise Plus 예약 필수, 대륙 내 페어 한정)</code> 전용</strong><br/>
+                  • <strong>Standard CRR은 Primary 생존 시에만 승격(Soft Promotion) 가능</strong>하며 Primary 전면 장애 시 승격 불가
+                </td>
+                <td class="py-2.5 px-3.5">
+                  <a href="https://cloud.google.com/bigquery/docs/managed-disaster-recovery" target="_blank" class="text-blue-600 hover:underline font-semibold block">🔗 Managed Disaster Recovery</a>
+                  <a href="https://cloud.google.com/bigquery/docs/disaster-recovery-migration" target="_blank" class="text-blue-600 hover:underline font-semibold block mt-0.5">🔗 CRR vs DR 기능 차이 비교표</a>
+                  <a href="https://cloud.google.com/bigquery/docs/data-replication" target="_blank" class="text-blue-600 hover:underline font-semibold block mt-0.5">🔗 Cross-region dataset replication</a>
+                </td>
+              </tr>
+
+              <tr class="hover:bg-slate-50">
+                <td class="py-2.5 px-3.5 font-bold text-blue-700">Q4 &amp; Card 2.<br/>DTS Dataset Copy</td>
+                <td class="py-2.5 px-3.5 text-slate-600">
+                  • 배지 <code class="bg-slate-100 px-1 rounded">[GA]</code> 표기<br/>
+                  • <code class="bg-slate-100 px-1 rounded">데이터셋·테이블 단위</code><br/>
+                  • <code class="bg-slate-100 px-1 rounded">타겟이 독립 테이블 — DML·DDL 자유</code>
+                </td>
+                <td class="py-2.5 px-3.5 text-slate-800">
+                  • 크로스 리전 <code class="bg-slate-100 px-1 rounded">Copy datasets</code>는 공식 문서상 <strong><code class="text-indigo-700">[BETA]</code></strong> (사내 <code class="bg-slate-100 px-1 rounded">b/440110440</code>, 26Q4~27Q1 GA 목표)<br/>
+                  • 개별 테이블 선택 불가(<strong>데이터셋 단위만 가능</strong>), <strong>최소 스케줄 주기 12시간</strong>, 1회 Run 최대 1,000 테이블 제한<br/>
+                  • 복제된 테이블 직접 수정 시 다음 배치에 <strong>전체 덮어쓰기(Truncate &amp; Replace)로 유실</strong>되므로 별도 테이블 가공 필수
+                </td>
+                <td class="py-2.5 px-3.5">
+                  <a href="https://cloud.google.com/bigquery/docs/managing-datasets#copy-datasets" target="_blank" class="text-blue-600 hover:underline font-semibold block">🔗 Copy datasets (Beta 명시)</a>
+                  <a href="https://cloud.google.com/bigquery/quotas#copy_jobs" target="_blank" class="text-blue-600 hover:underline font-semibold block mt-0.5">🔗 Dataset copy 1,000 테이블 쿼터</a>
+                  <span class="text-slate-500 text-[11px] block mt-0.5">사내: b/440110440, b/486235839</span>
+                </td>
+              </tr>
+
+              <tr class="hover:bg-slate-50">
+                <td class="py-2.5 px-3.5 font-bold text-amber-700">Q5 &amp; Card 3.<br/>Native Table Copy<br/>(<code class="font-mono">bq cp</code>, CRTC)</td>
+                <td class="py-2.5 px-3.5 text-slate-600">
+                  • <code class="bg-slate-100 px-1 rounded">일회성 Egress만 발생, bq cancel로 중단 용이</code><br/>
+                  • <code class="bg-slate-100 px-1 rounded">물리 1 TiB 초과 시 ~10% 실패율 — GA 보류</code>
+                </td>
+                <td class="py-2.5 px-3.5 text-slate-800">
+                  • <strong>작업 완료 전 <code class="bg-slate-100 px-1 rounded">bq cancel</code>로 취소하더라도 기전송된 데이터에 대한 크로스 리전 복제 요금이 부과됨</strong><br/>
+                  • 퍼블릭 문서는 <strong>물리 20 TiB 상한(1 TiB 초과 시 다중 재시도 필요)</strong>로 명시<br/>
+                  • 내부적으로는 구형 Effingo를 대체한 <strong>신형 CRR 기반 CRTC 엔진(최대 30 TB, 1 Gbps 보장)</strong>이 26년 7월 Wave 5 롤아웃 완료
+                </td>
+                <td class="py-2.5 px-3.5">
+                  <a href="https://cloud.google.com/bigquery/docs/managing-tables#copy_tables_across_regions" target="_blank" class="text-blue-600 hover:underline font-semibold block">🔗 Copy tables across regions (과금 경고)</a>
+                  <a href="https://cloud.google.com/bigquery/docs/managing-tables#limitations" target="_blank" class="text-blue-600 hover:underline font-semibold block mt-0.5">🔗 Table copy Limitations (20 TiB)</a>
+                  <span class="text-slate-500 text-[11px] block mt-0.5">사내: launch/4364631, b/214591611</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="bg-slate-100 border border-slate-200 rounded-xl px-5 py-3 flex items-center justify-between text-xs text-slate-600">
+        <div>
+          <strong>Tip:</strong> 상단의 <span class="font-bold text-blue-700">[🖨️ PDF / 슬라이드 인쇄]</span> 버튼을 누르면 각 섹션이 16:9 와이드스크린 슬라이드 1장씩으로 깔끔하게 PDF/인쇄 출력됩니다.
+        </div>
+        <div class="font-bold text-slate-700">Google Cloud · BigQuery Cross-Region Architecture Guide</div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    (function() {
+      const params = new URLSearchParams(window.location.search);
+      const only = params.get('only');
+      if (only) {
+        document.querySelectorAll('.no-print').forEach(el => el.style.display = 'none');
+        document.body.style.padding = '0';
+        document.body.style.margin = '0';
+        document.body.style.background = '#ffffff';
+        document.querySelectorAll('.slide-page').forEach(sec => {
+          if (sec.id !== only) {
+            sec.style.display = 'none';
+          } else {
+            sec.style.margin = '0';
+            sec.style.borderRadius = '0';
+            sec.style.border = 'none';
+            sec.style.boxShadow = 'none';
+            sec.style.width = '1280px';
+            sec.style.height = '720px';
+          }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

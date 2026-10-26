@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Sendbird BigQuery Solution Comparison: Cross-Region Table Copy Test Runner
+BigQuery Solution Comparison: Cross-Region Table Copy Test Runner
 Measures performance, elapsed time, and validates row parity across regions.
 """
 
@@ -12,10 +12,10 @@ from google.cloud import bigquery
 def parse_args():
     parser = argparse.ArgumentParser(description="Test BigQuery Cross-Region Table Copy")
     parser.add_argument("--project_id", required=True, help="Google Cloud Project ID")
-    parser.add_argument("--source_dataset", default="sendbird_source_us", help="Source dataset name")
+    parser.add_argument("--source_dataset", default="demo_source_us", help="Source dataset name")
     parser.add_argument("--source_table", default="chat_messages", help="Source table name")
-    parser.add_argument("--dest_dataset", default="sendbird_dest_copy_kr", help="Destination dataset name")
-    parser.add_argument("--dest_table", default="chat_messages_copied", help="Destination table name")
+    parser.add_argument("--dest_dataset", default="demo_dest_copy_kr", help="Destination dataset name")
+    parser.add_argument("--dest_table", default="chat_messages", help="Destination table name")
     parser.add_argument("--source_region", default="us-central1", help="Source region (e.g. us-central1)")
     parser.add_argument("--dest_region", default="asia-northeast3", help="Destination region (e.g. asia-northeast3)")
     return parser.parse_args()
@@ -30,13 +30,11 @@ def main():
     print(" Launch Stage: PREVIEW")
     print("=" * 70)
 
-    # Initialize client with location set to source region
     client = bigquery.Client(project=args.project_id, location=args.source_region)
 
     source_table_ref = f"{args.project_id}.{args.source_dataset}.{args.source_table}"
     dest_table_ref = f"{args.project_id}.{args.dest_dataset}.{args.dest_table}"
 
-    # 1. Fetch Source Table Metadata
     print("\n[Step 1] Fetching source table metadata...")
     source_table = client.get_table(source_table_ref)
     source_num_rows = source_table.num_rows
@@ -44,7 +42,6 @@ def main():
     print(f"  - Source Rows:  {source_num_rows:,}")
     print(f"  - Source Bytes: {source_num_bytes / (1024 * 1024):.2f} MB ({source_num_bytes:,} bytes)")
 
-    # 2. Configure Copy Job
     job_config = bigquery.CopyJobConfiguration()
     job_config.write_disposition = bigquery.WriteDisposition.WRITE_TRUNCATE
 
@@ -60,8 +57,7 @@ def main():
     print(f"  - Job ID: {copy_job.job_id}")
     print("  - Waiting for copy job completion...")
 
-    # 3. Wait for Job Completion
-    copy_job.result()  # Blocks until job completes
+    copy_job.result()
     end_time = time.time()
     elapsed_seconds = max(0.001, end_time - start_time)
 
@@ -71,7 +67,6 @@ def main():
     throughput_mb_s = mb_transferred / elapsed_seconds
     print(f"  - Effective Throughput: {throughput_mb_s:.2f} MB/s")
 
-    # 4. Verify Destination Table
     print("\n[Step 4] Verifying destination table...")
     dest_client = bigquery.Client(project=args.project_id, location=args.dest_region)
     dest_table = dest_client.get_table(dest_table_ref)

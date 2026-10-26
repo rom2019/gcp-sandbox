@@ -1,5 +1,5 @@
 -- =============================================================================
--- Sendbird Solution Comparison: BigQuery CRR (Cross-Region Dataset Replication) Lifecycle
+-- BigQuery Solution Comparison: BigQuery CRR (Cross-Region Dataset Replication) Lifecycle
 -- Demonstrates Replica Creation, Sync Monitoring, Read-only Querying, Failover, & Teardown
 -- =============================================================================
 
@@ -17,11 +17,6 @@ OPTIONS (
 -- STEP 2: Monitor Replication Progress & Sync Status
 -- Check replica state, sync status, and latest replicated timestamp
 -- -----------------------------------------------------------------------------
--- NOTE: SCHEMATA_REPLICAS has no 'replica_type' or plain-string 'sync_status' column
--- (verified against the official reference, Sep 2026). Use creation_complete (BOOL) to
--- know when the secondary's initial full sync finished; sync_status is JSON diagnostic
--- info (NULL for the primary replica) - inspect it with TO_JSON_STRING() rather than
--- comparing it to a string like 'SYNCED'.
 SELECT
   catalog_name AS project_id,
   schema_name AS dataset_id,
@@ -56,7 +51,7 @@ INSERT INTO `@PROJECT_ID@.@SOURCE_DATASET@.chat_messages` (
 )
 VALUES (
   GENERATE_UUID(),
-  'sendbird_group_channel_live_test',
+  'app_group_channel_live_test',
   'user_vip_999',
   'MESG',
   'Real-time replication probe message to verify CRR replication lag',
@@ -68,7 +63,7 @@ VALUES (
 -- Check row count in replica after short delay:
 SELECT
   COUNT(1) AS replica_row_count,
-  COUNTIF(channel_url = 'sendbird_group_channel_live_test') AS live_probe_count
+  COUNTIF(channel_url = 'app_group_channel_live_test') AS live_probe_count
 FROM `@PROJECT_ID@.@SOURCE_DATASET@.chat_messages`;
 
 -- -----------------------------------------------------------------------------
@@ -80,10 +75,7 @@ SET OPTIONS (
   primary_replica = '@DEST_REGION@'
 );
 
--- Verify the promotion: SCHEMATA_REPLICAS doesn't expose a queryable PRIMARY/SECONDARY
--- flag, so confirm the role switch behaviorally instead - only the current primary is
--- writable (the secondary is read-only until promoted). Run this test INSERT with
--- --location=@DEST_REGION@: it fails before promotion and succeeds after.
+-- Verify the promotion: only the current primary is writable.
 INSERT INTO `@PROJECT_ID@.@SOURCE_DATASET@.chat_messages` (
   message_id, channel_url, user_id, message_type, message_text, payload_json, created_at, updated_at
 )

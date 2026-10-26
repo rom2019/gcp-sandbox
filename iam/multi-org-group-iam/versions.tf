@@ -7,6 +7,12 @@ terraform {
       version = ">= 6.0.0"
     }
   }
+
+  # 프로덕션 운영 시 로컬 state 대신 Seed 프로젝트 내 버전 관리(Versioning)가 활성화된 GCS 버킷 사용을 권장합니다.
+  # backend "gcs" {
+  #   bucket = "iam-seed-prod-01-tfstate"
+  #   prefix = "multi-org-group-iam"
+  # }
 }
 
 provider "google" {

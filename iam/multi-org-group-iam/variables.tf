@@ -52,7 +52,7 @@ variable "sample_folder_display_name" {
 }
 
 variable "groups" {
-  description = "신규 조직(additional-domain.com)에 생성할 Cloud Identity 그룹 정의, 메인 도메인(@main-domain.com) 멤버 매핑 및 IAM 역할"
+  description = "신규 조직(additional-domain.com)에 생성할 Cloud Identity 그룹 정의, 메인 도메인(@main-domain.com) 멤버 매핑 및 IAM 역할. (보안 권장: Terraform 우회 멤버 추가를 막기 위해 고권한 그룹에서는 managers를 비워 두고 SA만 Owner로 유지하세요.)"
   type = map(object({
     email_prefix = string
     display_name = string

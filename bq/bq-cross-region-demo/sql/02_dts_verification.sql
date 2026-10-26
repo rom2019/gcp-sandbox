@@ -1,8 +1,8 @@
 -- =============================================================================
--- Sendbird Solution Comparison: DTS Dataset Copy Verification
+-- BigQuery Solution Comparison: DTS Dataset Copy Verification
 -- Inspect transfer execution history, verify row parity, and check table schemas
 -- Manual reference query: replace @PLACEHOLDER@ tokens by hand before running.
--- @DEST_DATASET@ -> sendbird_dest_dts_kr (the dataset test_dts.sh copies into)
+-- @DEST_DATASET@ -> demo_dest_dts_kr (the dataset test_dts.sh copies into)
 -- =============================================================================
 
 -- 1. Check Data Transfer Service execution history and status

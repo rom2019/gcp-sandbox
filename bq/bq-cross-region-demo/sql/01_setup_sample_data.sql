@@ -1,10 +1,10 @@
 -- =============================================================================
--- Sendbird Solution Comparison: Sample Data Setup
--- Simulates Sendbird chat messages and channel events for Cross-Region testing
--- Source Dataset: e.g. sendbird_us (us-central1)
+-- BigQuery Cross-Region Solution Comparison: Sample Data Setup
+-- Simulates enterprise real-time event messages for Cross-Region testing
+-- Source Dataset: e.g. demo_source_us (us-central1)
 -- =============================================================================
 
--- 1. Create Sendbird Chat Messages Table (Partitioned & Clustered)
+-- 1. Create Event Messages Table (Partitioned & Clustered)
 CREATE TABLE IF NOT EXISTS `@PROJECT_ID@.@SOURCE_DATASET@.chat_messages` (
   message_id STRING NOT NULL,
   channel_url STRING NOT NULL,
@@ -18,21 +18,21 @@ CREATE TABLE IF NOT EXISTS `@PROJECT_ID@.@SOURCE_DATASET@.chat_messages` (
 PARTITION BY DATE(created_at)
 CLUSTER BY channel_url, user_id
 OPTIONS (
-  description = "Sendbird simulated chat messages partitioned by day and clustered by channel and user"
+  description = "Simulated real-time application event messages partitioned by day and clustered by channel and user"
 );
 
--- 2. Insert realistic sample data (10,000 chat messages across 100 channels)
+-- 2. Insert realistic sample data (10,000 event records across 100 channels)
 INSERT INTO `@PROJECT_ID@.@SOURCE_DATASET@.chat_messages`
 SELECT
   GENERATE_UUID() AS message_id,
-  CONCAT('sendbird_group_channel_', CAST(MOD(ABS(FARM_FINGERPRINT(CAST(i AS STRING))), 100) AS STRING)) AS channel_url,
+  CONCAT('app_group_channel_', CAST(MOD(ABS(FARM_FINGERPRINT(CAST(i AS STRING))), 100) AS STRING)) AS channel_url,
   CONCAT('user_', CAST(MOD(ABS(FARM_FINGERPRINT(CAST(i * 3 AS STRING))), 500) AS STRING)) AS user_id,
   CASE MOD(i, 10)
     WHEN 0 THEN 'FILE'
     WHEN 1 THEN 'ADMN'
     ELSE 'MESG'
   END AS message_type,
-  CONCAT('Test chat message content for Sendbird scale benchmark #', CAST(i AS STRING)) AS message_text,
+  CONCAT('Sample real-time event payload for cross-region scale benchmark #', CAST(i AS STRING)) AS message_text,
   PARSE_JSON(FORMAT('{"device": "%s", "client_version": "v4.1.2", "reactions_count": %d}', 
     CASE MOD(i, 3) WHEN 0 THEN 'iOS' WHEN 1 THEN 'Android' ELSE 'Web' END,
     MOD(i, 7)

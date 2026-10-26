@@ -11,14 +11,25 @@ locals {
     : data.google_organization.additional[0].directory_customer_id
   )
 
+  normalized_main_login_domain = lower(trimspace(var.main_login_domain))
+
+  # 대소문자 혼용 입력 시 중복 키 충돌 및 MANAGER 역할 누락을 방지하기 위해 먼저 소문자·공백 정규화 수행
+  normalized_groups = {
+    for group_key, group_cfg in var.groups :
+    group_key => {
+      members  = distinct([for email in group_cfg.members : lower(trimspace(email))])
+      managers = toset([for email in group_cfg.managers : lower(trimspace(email))])
+    }
+  }
+
   # 그룹별 일반 멤버 및 매니저 목록을 (group_key, email) 단위로 평탄화
   group_memberships = merge([
-    for group_key, group_cfg in var.groups : {
-      for email in distinct(concat(group_cfg.members, group_cfg.managers)) :
-      "${group_key}:${lower(email)}" => {
+    for group_key, norm in local.normalized_groups : {
+      for email in distinct(concat(norm.members, tolist(norm.managers))) :
+      "${group_key}:${email}" => {
         group_key    = group_key
-        member_email = lower(email)
-        roles        = contains(group_cfg.managers, email) ? ["MEMBER", "MANAGER"] : ["MEMBER"]
+        member_email = email
+        roles        = contains(norm.managers, email) ? ["MEMBER", "MANAGER"] : ["MEMBER"]
       }
     }
   ]...)
@@ -64,8 +75,9 @@ resource "google_cloud_identity_group" "additional_org_groups" {
   }
 }
 
-# 2. Groups Settings API를 호출하여 외부 도메인 멤버(allowExternalMembers) 허용 활성화
-# (hashicorp/google 프로바이더에 네이티브 속성이 없어 SA Impersonation 기반 REST API로 PATCH)
+# 2. IAM Credentials API로 단기 SA 토큰을 발급받아 Groups Settings API(allowExternalMembers=true) PATCH
+# 참고: hashicorp/google 프로바이더에 Groups Settings 네이티브 리소스가 없어 그룹 생성 시 1회 PATCH로 동작하며,
+# 이후 Admin Console에서 수동으로 설정을 변경(Drift)하더라도 Terraform이 자동 감지하지는 못합니다.
 resource "terraform_data" "enable_external_members" {
   for_each = google_cloud_identity_group.additional_org_groups
 
@@ -78,13 +90,27 @@ resource "terraform_data" "enable_external_members" {
     interpreter = ["/bin/bash", "-c"]
     command     = <<-EOT
       set -euo pipefail
-      TOKEN=$(gcloud auth print-access-token \
-        --impersonate-service-account="${var.tf_service_account_email}" \
-        --scopes="https://www.googleapis.com/auth/apps.groups.settings")
 
-      GROUP_EMAIL="${each.value.group_key[0].id}"
+      USER_TOKEN=$(gcloud auth application-default print-access-token 2>/dev/null || gcloud auth print-access-token)
+      IAM_RESP=$(mktemp)
       RESP_FILE=$(mktemp)
-      trap 'rm -f "$${RESP_FILE}"' EXIT
+      trap 'rm -f "$${IAM_RESP}" "$${RESP_FILE}"' EXIT
+
+      IAM_HTTP_CODE=$(curl -s -o "$${IAM_RESP}" -w "%%{http_code}" \
+        -X POST \
+        -H "Authorization: Bearer $${USER_TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d '{"scope":["https://www.googleapis.com/auth/apps.groups.settings"],"lifetime":"300s"}' \
+        "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${var.tf_service_account_email}:generateAccessToken")
+
+      if [ "$${IAM_HTTP_CODE}" != "200" ]; then
+        echo "Failed to generate short-lived SA token for ${var.tf_service_account_email} (HTTP $${IAM_HTTP_CODE}):" >&2
+        cat "$${IAM_RESP}" >&2
+        exit 1
+      fi
+
+      TOKEN=$(python3 -c 'import json, sys; print(json.load(sys.stdin)["accessToken"])' < "$${IAM_RESP}")
+      GROUP_EMAIL="${each.value.group_key[0].id}"
 
       for i in 1 2 3 4 5; do
         HTTP_CODE=$(curl -s -o "$${RESP_FILE}" -w "%%{http_code}" \
@@ -127,17 +153,17 @@ resource "google_cloud_identity_group_membership" "external_domain_members" {
     }
   }
 
-  # 보안 가드레일: allowExternalMembers 활성화 시 @gmail.com 등 비인가 외부 도메인 유입을 코드 레벨에서 원천 차단
+  # 보안 가드레일: allowExternalMembers 활성화 환경에서 Terraform 배포 경로를 통한 비인가 외부 도메인(@gmail.com 등) 오입력 차단
   lifecycle {
     precondition {
-      condition     = endswith(each.value.member_email, "@${lower(var.main_login_domain)}")
+      condition     = endswith(each.value.member_email, "@${local.normalized_main_login_domain}")
       error_message = "보안 정책 위반: 허용된 메인 로그인 도메인(@${var.main_login_domain}) 계정만 그룹에 추가할 수 있습니다. (입력값: ${each.value.member_email})"
     }
   }
 }
 
 # 4. 그룹 단위 Organization 루트 레벨 Additive IAM 바인딩
-# (예: gcp-users 그룹에 organizationViewer + browser 부여 → 콘솔 스위처에 2개 조직 동시 노출)
+# (예: gcp-users 그룹에 roles/browser 부여 → resourcemanager.organizations.get 포함으로 콘솔 스위처에 2개 조직 동시 노출)
 resource "google_organization_iam_member" "group_org_roles" {
   for_each   = local.group_org_iam_bindings
   depends_on = [terraform_data.enable_external_members]

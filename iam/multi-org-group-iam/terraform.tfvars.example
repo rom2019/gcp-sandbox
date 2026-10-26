@@ -12,13 +12,12 @@ groups = {
   users = {
     email_prefix = "gcp-users"
     display_name = "GCP All Users"
-    description  = "Grants Org Viewer and Browser so additional-domain.com appears in GCP Organization Switcher"
+    description  = "Grants Browser role so additional-domain.com appears in GCP Organization Switcher and hierarchy tree"
     members = [
       "cloud-admin@main-domain.com",
       "app-dev1@main-domain.com",
     ]
     org_roles = [
-      "roles/resourcemanager.organizationViewer",
       "roles/browser",
     ]
   }
@@ -26,9 +25,8 @@ groups = {
   org_admins = {
     email_prefix = "gcp-org-admins"
     display_name = "GCP Organization Admins"
-    description  = "Platform and Organization Administrators for additional-domain.com"
+    description  = "Platform and Organization Administrators for additional-domain.com (managed strictly via Terraform)"
     members      = ["cloud-admin@main-domain.com"]
-    managers     = ["cloud-admin@main-domain.com"]
     org_roles = [
       "roles/resourcemanager.organizationAdmin",
       "roles/resourcemanager.folderAdmin",
