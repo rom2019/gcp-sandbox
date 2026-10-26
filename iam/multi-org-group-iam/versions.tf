@@ -25,7 +25,5 @@ provider "google" {
   scopes = [
     "https://www.googleapis.com/auth/cloud-platform",
     "https://www.googleapis.com/auth/userinfo.email",
-    "https://www.googleapis.com/auth/cloud-identity.groups",
-    "https://www.googleapis.com/auth/apps.groups.settings",
   ]
 }

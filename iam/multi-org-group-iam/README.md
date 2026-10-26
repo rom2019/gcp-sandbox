@@ -165,7 +165,7 @@ ACCOUNT_ID            NAME                        OPEN  MASTER_ACCOUNT_ID
 > [!WARNING]
 > `ID`(`123456789012`, 숫자형 GCP Organization ID)와 `DIRECTORY_CUSTOMER_ID`(`C02xxxxxx`, Cloud Identity 고객 ID)는 서로 다른 식별자입니다. Cloud Identity Groups API의 `parent`에는 반드시 `C02xxxxxx` 형식이 사용되어야 하며, 본 에셋의 Terraform 코드는 `additional_org_id`만 입력하면 `C02xxxxxx`를 자동 조회합니다.
 
-#### 1-2. 환경 변수 설정, Seed 프로젝트 생성 및 필수 API 5종 활성화
+#### 1-2. 환경 변수 설정, Seed 프로젝트 생성 및 필수 API 6종 활성화
 
 ```bash
 export ADDITIONAL_DOMAIN="additional-domain.com" # 신규 분리 GCP 조직 도메인
@@ -179,11 +179,12 @@ gcloud projects create "${SEED_PROJECT_ID}" --organization="${ADDITIONAL_ORG_ID}
 gcloud billing projects link "${SEED_PROJECT_ID}" --billing-account="${BILLING_ID}"
 gcloud config set project "${SEED_PROJECT_ID}"
 
-# 2. 필수 API 5종 활성화 (Cloud Identity + Groups Settings + IAM Credentials 포함)
+# 2. 필수 API 6종 활성화 (orgpolicy.googleapis.com은 Step 1-5의 DRS 정책 조회 쿼터용으로 포함)
 gcloud services enable \
   cloudidentity.googleapis.com \
   groupssettings.googleapis.com \
   cloudresourcemanager.googleapis.com \
+  orgpolicy.googleapis.com \
   iam.googleapis.com \
   iamcredentials.googleapis.com \
   --project="${SEED_PROJECT_ID}"
@@ -409,7 +410,8 @@ sequenceDiagram
 | 확인 위치 | 정상 동작 확인 포인트 |
 | :--- | :--- |
 | `admin.google.com` > **Directory > Groups** | 부트스트랩 그룹(`gcp-tf-operators@`) 외에 Terraform으로 생성한 `gcp-users@`, `gcp-org-admins@`, `gcp-app-devs@additional-domain.com` 그룹이 표시되며 **외부 멤버 허용 배지** 활성화 확인 |
-| 각 Terraform 그룹 클릭 > **Members** | `tf-iam-admin@...` 서비스 계정만 유일한 **`Owner` (`Service account`)** 로 유지되고, `*@main-domain.com` 임직원 계정은 모두 **`Member` (`User`)** 로 편입됨 (`Manager` 미부여 확인) |
+| **Terraform 생성 그룹** 클릭 > **Members** | `tf-iam-admin@...` 서비스 계정만 유일한 **`Owner` (`Service account`)** 로 유지되고, `*@main-domain.com` 임직원 계정은 모두 **`Member` (`User`)** 로 편입됨 (`Manager` 미부여 확인) |
+| **부트스트랩 그룹(`gcp-tf-operators@`)** > **Members** | 초기 생성자인 `superadmin@additional-domain.com`(봉인 계정)이 **`Owner`** 로 표시되고, `cloud-admin@main-domain.com`은 **`Member`** 로 표시됨 |
 
 #### 5-B. GCP Console 검증 (`user@main-domain.com` 단일 로그인 상태)
 
@@ -431,8 +433,8 @@ sequenceDiagram
 ```text
 Error: Resource precondition failed
 
-  on main.tf line 159, in resource "google_cloud_identity_group_membership" "external_domain_members":
- 159:       condition     = endswith(each.value.member_email, "@${local.normalized_main_login_domain}")
+  on main.tf line 158, in resource "google_cloud_identity_group_membership" "external_domain_members":
+ 158:       condition     = endswith(each.value.member_email, "@${local.normalized_main_login_domain}")
 
 보안 정책 위반: 허용된 메인 로그인 도메인(@main-domain.com) 계정만 그룹에 추가할 수 있습니다. (입력값: unauthorized-user@gmail.com)
 ```
@@ -445,10 +447,13 @@ Error: Resource precondition failed
 
 1. **Terraform 배포 경로 도메인 검증 및 `MANAGER` 권한 배제**:
    - Terraform `lifecycle.precondition`은 **Terraform 코드 파이프라인 경로**에서의 비인가 도메인(`@gmail.com` 등) 오입력을 차단합니다. 단, Admin Console이나 Cloud Identity API를 통한 직접 변경(Out-of-band)까지 서버 측에서 차단하지는 못하며, Cloud Identity의 서버 측 `SecuritySettings.memberRestriction` 또한 현재 동일 조직(`groupCustomerId()`, 즉 `C02`) 제한만 지원하여 타 조직(`C01`) 허용 규칙에는 사용할 수 없습니다.
-   - 따라서 ① 고권한 그룹(`gcp-org-admins` 등)에 사람 계정을 `MANAGER`/`OWNER`로 지정하지 않아 `groups.google.com` 우회 추가 경로를 차단하고, ② Google Workspace **Admin 감사 로그(Groups Audit Log)** 알림 또는 정기 멤버십 점검을 병행하는 것을 권장합니다.
-2. **`allowExternalMembers` 설정의 Drift 미감지 한계**:
-   - `hashicorp/google` 프로바이더가 Groups Settings 리소스를 네이티브 지원하지 않기 때문에 [`main.tf`](./main.tf)의 `terraform_data.enable_external_members`는 그룹 최초 생성(또는 교체) 시 1회 `PATCH`를 수행합니다. 이후 누군가 Admin Console에서 수동으로 외부 멤버 허용을 끄더라도 `terraform plan` 단계에서는 변경(Drift)이 감지되지 않으며 신규 멤버 추가 시점에 API 에러로 나타납니다.
-3. **100% Keyless 인증, DRS 기본 격리 유지 및 Additive IAM 준수**:
+   - 따라서 고권한 그룹에 사람 계정을 `MANAGER`/`OWNER`로 지정하지 않아 `groups.google.com` 우회 추가 경로를 차단하고, 정기적인 멤버십 감사 점검을 병행해야 합니다.
+2. **Tier-0 최상위 특권 그룹(`gcp-tf-operators`, `gcp-org-admins`) 최우선 감사 알림 설정**:
+   - `tf-iam-admin` SA는 도메인 전체 `Groups Admin`과 GCP `organizationAdmin`을 함께 보유합니다. 따라서 SA 가장 권한을 가진 **`gcp-tf-operators@additional-domain.com`** 과 조직 IAM 정책 변경 권한(스스로 `Token Creator` 부여 가능)을 가진 **`gcp-org-admins@additional-domain.com`** 멤버는 사실상 신규 조직의 **최상위 권한(Tier-0)** 경로입니다.
+   - 순환 잠금(Self-lockout)을 방지하기 위해 `gcp-tf-operators`는 의도적으로 Terraform 관리 대상에서 분리해 두었으나, SA가 `Groups Admin`이므로 기술적으로는 코드 변경을 통해 접근할 수도 있습니다. 반드시 Google Workspace **Admin 감사 로그(Groups Audit Log)** 및 **GCP Cloud Audit Logs**에서 이 두 그룹의 멤버십 변경과 `tf-iam-admin` SA의 IAM 정책 변경을 **최우선 실시간 보안 알림(Alert) 대상**으로 설정하세요.
+3. **`allowExternalMembers` 설정의 Drift 미감지 한계**:
+   - `hashicorp/google` 프로바이더가 Groups Settings 리소스를 네이티브 지원하지 않기 때문에 [`main.tf`](./main.tf)의 `terraform_data.enable_external_members`는 그룹 최초 생성(또는 교체) 시 1회 `PATCH`를 수행합니다(호스트 `ps` 프로세스 인자 노출을 막기 위해 `curl -K -` stdin 헤더 전달 방식 사용). 이후 누군가 Admin Console에서 수동으로 외부 멤버 허용을 끄더라도 `terraform plan` 단계에서는 변경(Drift)이 감지되지 않으며 신규 멤버 추가 시점에 API 에러로 나타납니다.
+4. **100% Keyless 인증, DRS 기본 격리 유지 및 Additive IAM 준수**:
    - SA JSON 키 발급을 금지(`constraints/iam.disableServiceAccountKeyCreation`)하고, DRS는 `C02xxxxxx` 전용으로 유지하며, 조직 루트 Lock-out 사고를 막기 위해 기존 권한을 덮어쓰는 `iam_policy` / `iam_binding` 대신 증분 관리 리소스인 `google_organization_iam_member`와 `google_folder_iam_member`만 사용합니다.
 
 ### 5.2 프로덕션 운영 성숙도 전환 가이드 (GCS State & CI/CD WIF)
@@ -457,9 +462,11 @@ Error: Resource precondition failed
 
 1. **원격 GCS State 백엔드 구성**:
    - Seed 프로젝트(`iam-seed-prod-01`) 내에 객체 버전 관리(Object Versioning)와 Uniform Bucket-Level Access가 활성화된 GCS 버킷을 생성하고, [`versions.tf`](./versions.tf)의 `backend "gcs"` 블록 주석을 해제하여 로컬 상태 파일 유실 및 동시 실행 충돌을 방지합니다.
-2. **개인 로컬 ADC 대신 CI/CD Workload Identity Federation(WIF) 전환**:
-   - 운영자 개인 노트북에서 `terraform apply`를 실행할 수 있으면 Git PR 리뷰를 우회할 여지가 남습니다.
-   - 프로덕션 전환 시 `gcp-tf-operators` 그룹에서 사람 계정을 제거(또는 비상시에만 한시 투입)하고, GitHub Actions 또는 Cloud Build를 **Workload Identity Federation**으로 `tf-iam-admin` SA에 연결하여 **`main` 브랜치 PR 승인 및 머지 시에만 CI 파이프라인이 `terraform apply`를 수행**하도록 구성하세요.
+2. **개인 로컬 ADC 대신 CI/CD Workload Identity Federation(WIF) 전환 (이중 가장 주의)**:
+   - 운영자 개인 노트북에서 `terraform apply`를 실행할 수 있으면 Git PR 리뷰를 우회할 여지가 남습니다. 프로덕션 전환 시 `gcp-tf-operators` 그룹에서 사람 계정을 제거(비상시 한시 투입)하고, GitHub Actions 또는 Cloud Build 파이프라인이 **`main` 브랜치 PR 승인 및 머지 시에만 `terraform apply`를 실행**하도록 전환하세요.
+   - **WIF 구성 시 주의점 (1-hop Impersonation 유지)**: [`versions.tf`](./versions.tf)의 `impersonate_service_account`와 [`main.tf`](./main.tf)의 `local-exec`(`:generateAccessToken`)는 모두 **"호출자 ADC → `tf-iam-admin` SA 1단계 가장"** 구조로 동작합니다. 만약 CI 인증 스텝(예: `google-github-actions/auth`의 `service_account` 옵션)이나 로컬 `gcloud auth application-default login --impersonate-service-account`로 ADC 자체를 이미 SA가 가장된 상태로 만들면, SA가 자기 자신에 대해 `:generateAccessToken`을 다시 호출하면서 `HTTP 403`이 발생합니다.
+     - **권장 구성**: WIF 주체(`principalSet://iam.googleapis.com/projects/.../workloadIdentityPools/...`)에 `tf-iam-admin` SA의 `roles/iam.serviceAccountTokenCreator`를 부여하고, CI 인증 단계에서는 SA 가장 옵션을 뺀 **Direct WIF**로 ADC를 구성하세요.
+     - **대안 구성**: 조직 표준상 CI에서 SA 가장형 ADC(`service_account_impersonation_url` 포함)를 반드시 써야 한다면, `tf-iam-admin` SA에 자기 자신(`serviceAccount:${TF_SA_EMAIL}`)에 대한 `roles/iam.serviceAccountTokenCreator`를 추가 부여하면 정상 동작합니다.
 
 ---
 

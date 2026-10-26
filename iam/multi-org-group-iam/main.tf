@@ -96,9 +96,9 @@ resource "terraform_data" "enable_external_members" {
       RESP_FILE=$(mktemp)
       trap 'rm -f "$${IAM_RESP}" "$${RESP_FILE}"' EXIT
 
-      IAM_HTTP_CODE=$(curl -s -o "$${IAM_RESP}" -w "%%{http_code}" \
+      # 공유 CI 러너 등에서 프로세스 인자(ps)에 토큰이 노출되지 않도록 bash 내장 printf + curl -K -(stdin) 사용
+      IAM_HTTP_CODE=$(printf 'header = "Authorization: Bearer %s"\n' "$${USER_TOKEN}" | curl -s -K - -o "$${IAM_RESP}" -w "%%{http_code}" \
         -X POST \
-        -H "Authorization: Bearer $${USER_TOKEN}" \
         -H "Content-Type: application/json" \
         -d '{"scope":["https://www.googleapis.com/auth/apps.groups.settings"],"lifetime":"300s"}' \
         "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${var.tf_service_account_email}:generateAccessToken")
@@ -113,9 +113,8 @@ resource "terraform_data" "enable_external_members" {
       GROUP_EMAIL="${each.value.group_key[0].id}"
 
       for i in 1 2 3 4 5; do
-        HTTP_CODE=$(curl -s -o "$${RESP_FILE}" -w "%%{http_code}" \
+        HTTP_CODE=$(printf 'header = "Authorization: Bearer %s"\n' "$${TOKEN}" | curl -s -K - -o "$${RESP_FILE}" -w "%%{http_code}" \
           -X PATCH \
-          -H "Authorization: Bearer $${TOKEN}" \
           -H "Content-Type: application/json" \
           -H "Accept: application/json" \
           -d '{"allowExternalMembers": "true"}' \
