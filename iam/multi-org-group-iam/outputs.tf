@@ -15,7 +15,12 @@ output "organization" {
 output "groups" {
   description = "생성된 Cloud Identity 그룹 이메일 목록"
   type        = map(string)
-  value       = { for k, g in google_cloud_identity_group.groups : k => g.group_key[0].id }
+  value = {
+    gcp_users      = module.gcp_users.email
+    gcp_org_admins = module.gcp_org_admins.email
+    gcp_app_devs   = module.gcp_app_devs.email
+    gcp_prj_admins = module.gcp_prj_admins.email
+  }
 }
 
 output "app_dev_folder_id" {

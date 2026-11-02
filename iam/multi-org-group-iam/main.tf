@@ -11,87 +11,40 @@ ephemeral "google_service_account_access_token" "groups_settings" {
   lifetime               = "300s"
 }
 
-locals {
-  memberships = merge([
-    for group_id, members in var.groups : {
-      for email in toset([for m in members : lower(trimspace(m))]) :
-      "${group_id}:${email}" => {
-        group_id = group_id
-        email    = email
-      }
-    }
-  ]...)
-}
-
-# 1. 신규 조직 Cloud Identity에 그룹 생성 (Terraform SA 단독 Owner)
-resource "google_cloud_identity_group" "groups" {
-  for_each = var.groups
-
-  parent               = "customers/${data.google_organization.target.directory_customer_id}"
-  display_name         = each.key
-  initial_group_config = "WITH_INITIAL_OWNER"
-
-  group_key {
-    id = "${each.key}@${var.additional_domain}"
-  }
-
-  labels = {
-    "cloudidentity.googleapis.com/groups.discussion_forum" = ""
-  }
-}
-
-# 2. 외부 도메인(@main-domain.com) 멤버 추가 허용 활성화 (Groups Settings API 1회 PATCH)
-# 참고: hashicorp/google 프로바이더에 Groups Settings 네이티브 리소스가 없어 그룹 생성 시 1회 PATCH하며,
-# 프로세스 인자(ps)에 토큰이 노출되지 않도록 환경변수 + curl -K -(stdin) 방식으로 전달합니다.
-resource "terraform_data" "enable_external_members" {
-  for_each         = google_cloud_identity_group.groups
-  triggers_replace = [each.value.id]
-
-  provisioner "local-exec" {
-    quiet = true
-    environment = {
-      SA_TOKEN    = ephemeral.google_service_account_access_token.groups_settings.access_token
-      GROUP_EMAIL = each.value.group_key[0].id
-    }
-    command = <<-EOT
-      printf 'header = "Authorization: Bearer %s"\n' "$SA_TOKEN" \
-        | curl -sS --fail-with-body --retry 5 --retry-delay 4 --retry-all-errors -K - \
-            -X PATCH \
-            -H "Content-Type: application/json" \
-            -d '{"allowExternalMembers": "true"}' \
-            "https://www.googleapis.com/groups/v1/groups/$GROUP_EMAIL?alt=json" >/dev/null
-    EOT
-  }
-}
-
-# 3. 허용된 메인 로그인 도메인(@main-domain.com) 사용자를 그룹 멤버(MEMBER)로 등록
-resource "google_cloud_identity_group_membership" "members" {
-  for_each   = local.memberships
-  depends_on = [terraform_data.enable_external_members]
-
-  group = google_cloud_identity_group.groups[each.value.group_id].id
-
-  preferred_member_key {
-    id = each.value.email
-  }
-
-  roles {
-    name = "MEMBER"
-  }
-}
-
 # ==============================================================================
-# 4. Organization 루트 레벨 그룹 IAM 바인딩 (신규 그룹 추가 시 블록 Copy & Paste)
+# 1. 전 임직원 기본 그룹 (Org Root: Browser) — 신규 그룹 추가 시 블록 Copy & Paste
 # ==============================================================================
+module "gcp_users" {
+  source            = "./modules/external-group"
+  customer_id       = data.google_organization.target.directory_customer_id
+  group_email       = "gcp-users@${var.additional_domain}"
+  display_name      = "GCP All Users"
+  description       = "Grants Browser role so additional-domain.com appears in GCP Organization Switcher"
+  main_login_domain = var.main_login_domain
+  sa_access_token   = ephemeral.google_service_account_access_token.groups_settings.access_token
+  members           = var.gcp_users_members
+}
 
-# 전 임직원 기본 그룹: 상단 Organization Switcher에 신규 조직 노출 및 계층 탐색 허용
 resource "google_organization_iam_member" "gcp_users_browser" {
   org_id = data.google_organization.target.org_id
   role   = "roles/browser"
-  member = "group:${google_cloud_identity_group.groups["gcp-users"].group_key[0].id}"
+  member = module.gcp_users.iam_member
 }
 
-# 플랫폼/조직 관리자 그룹: 폴더 계층 구조, 프로젝트 생성 및 조직 IAM 관리 권한
+# ==============================================================================
+# 2. 플랫폼/조직 관리자 그룹 (Org Root: Org Admin / Folder Admin / Project Creator)
+# ==============================================================================
+module "gcp_org_admins" {
+  source            = "./modules/external-group"
+  customer_id       = data.google_organization.target.directory_customer_id
+  group_email       = "gcp-org-admins@${var.additional_domain}"
+  display_name      = "GCP Organization Admins"
+  description       = "Platform and Organization Administrators for additional-domain.com"
+  main_login_domain = var.main_login_domain
+  sa_access_token   = ephemeral.google_service_account_access_token.groups_settings.access_token
+  members           = var.gcp_org_admins_members
+}
+
 resource "google_organization_iam_member" "gcp_org_admins" {
   for_each = toset([
     "roles/resourcemanager.organizationAdmin",
@@ -101,17 +54,27 @@ resource "google_organization_iam_member" "gcp_org_admins" {
 
   org_id = data.google_organization.target.org_id
   role   = each.value
-  member = "group:${google_cloud_identity_group.groups["gcp-org-admins"].group_key[0].id}"
+  member = module.gcp_org_admins.iam_member
 }
 
 # ==============================================================================
-# 5. 하위 Folder 생성 및 Folder 레벨 최소 권한 격리 바인딩 (필요한 만큼 Copy & Paste)
+# 3. 앱 개발팀 폴더 및 폴더 최소 권한 그룹 (Folder: Folder Viewer / Viewer)
 # ==============================================================================
-
 resource "google_folder" "app_dev" {
   display_name        = "app-dev"
   parent              = data.google_organization.target.name
   deletion_protection = false
+}
+
+module "gcp_app_devs" {
+  source            = "./modules/external-group"
+  customer_id       = data.google_organization.target.directory_customer_id
+  group_email       = "gcp-app-devs@${var.additional_domain}"
+  display_name      = "GCP App Developers (Dev)"
+  description       = "Application developers scoped to the app-dev folder"
+  main_login_domain = var.main_login_domain
+  sa_access_token   = ephemeral.google_service_account_access_token.groups_settings.access_token
+  members           = var.gcp_app_devs_members
 }
 
 resource "google_folder_iam_member" "gcp_app_devs" {
@@ -122,5 +85,36 @@ resource "google_folder_iam_member" "gcp_app_devs" {
 
   folder = google_folder.app_dev.name
   role   = each.value
-  member = "group:${google_cloud_identity_group.groups["gcp-app-devs"].group_key[0].id}"
+  member = module.gcp_app_devs.iam_member
+}
+
+# ==============================================================================
+# 4. 특정 Project 전담 관리자 그룹 (Project: Editor + Project IAM Admin)
+# ==============================================================================
+module "gcp_prj_admins" {
+  source            = "./modules/external-group"
+  customer_id       = data.google_organization.target.directory_customer_id
+  group_email       = "gcp-prj-admins@${var.additional_domain}"
+  display_name      = "GCP Project Admins"
+  description       = "Project administrators scoped strictly to designated workload projects"
+  main_login_domain = var.main_login_domain
+  sa_access_token   = ephemeral.google_service_account_access_token.groups_settings.access_token
+  members           = var.gcp_prj_admins_members
+}
+
+# 과도한 원시 역할(roles/owner) 대신 GCP 권장 조합(Editor + Project IAM Admin)을 지정된 프로젝트들에만 바인딩
+resource "google_project_iam_member" "gcp_prj_admins_editor" {
+  for_each = var.gcp_prj_admins_project_ids
+
+  project = each.value
+  role    = "roles/editor"
+  member  = module.gcp_prj_admins.iam_member
+}
+
+resource "google_project_iam_member" "gcp_prj_admins_iam_admin" {
+  for_each = var.gcp_prj_admins_project_ids
+
+  project = each.value
+  role    = "roles/resourcemanager.projectIamAdmin"
+  member  = module.gcp_prj_admins.iam_member
 }

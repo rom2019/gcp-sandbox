@@ -18,17 +18,44 @@ variable "tf_service_account_email" {
   }
 }
 
-variable "groups" {
-  description = "생성할 Cloud Identity 그룹(맵 키 = 이메일 프리픽스) 및 소속 멤버(@main_login_domain) 이메일 목록"
-  type        = map(list(string))
+# ==============================================================================
+# 그룹별 소속 멤버 (@main_login_domain 계정 목록) 및 대상 프로젝트 ID
+# ==============================================================================
+
+variable "gcp_users_members" {
+  description = "신규 조직 접근 전 임직원 그룹(gcp-users) 멤버 목록 — 상단 조직 스위처 노출용"
+  type        = set(string)
+  default     = []
+}
+
+variable "gcp_org_admins_members" {
+  description = "조직 플랫폼 관리자 그룹(gcp-org-admins) 멤버 목록"
+  type        = set(string)
+  default     = []
+}
+
+variable "gcp_app_devs_members" {
+  description = "앱 개발팀 폴더(app-dev) 최소 권한 그룹(gcp-app-devs) 멤버 목록"
+  type        = set(string)
+  default     = []
+}
+
+variable "gcp_prj_admins_members" {
+  description = "특정 워크로드 프로젝트 전담 관리자 그룹(gcp-prj-admins) 멤버 목록"
+  type        = set(string)
+  default     = []
+}
+
+variable "gcp_prj_admins_project_ids" {
+  description = "gcp-prj-admins 그룹에 Project Admin 권한(Editor + Project IAM Admin)을 부여할 대상 GCP Project ID 목록"
+  type        = set(string)
+  default     = []
 
   validation {
-    condition = alltrue(flatten([
-      for members in values(var.groups) : [
-        for email in members :
-        endswith(lower(trimspace(email)), "@${lower(trimspace(var.main_login_domain))}")
-      ]
-    ]))
-    error_message = "보안 정책 위반: 모든 그룹 멤버는 허용된 메인 로그인 도메인(@${var.main_login_domain}) 계정이어야 합니다."
+    condition = alltrue([
+      for pid in var.gcp_prj_admins_project_ids :
+      can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", pid))
+    ])
+    error_message = "유효한 GCP Project ID(소문자·숫자·하이픈 6~30자)를 입력해야 합니다."
   }
 }
