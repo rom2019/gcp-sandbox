@@ -58,14 +58,14 @@ flowchart LR
 > **2) 수동 CLI가 아닌 코드 기반 선언적 예외 관리 (`project_tag_exemptions`)**
 > 콘솔이나 일회성 `gcloud` 명령으로 예외 태그를 붙이면 시간이 지나며 누가 왜 예외를 허용했는지 추적하기 어렵습니다. 본 에셋은 `terraform.tfvars`의 `project_tag_exemptions`(프로젝트 단위)와 `regional_resource_tag_exemptions`(개별 GCS 버킷·Cloud Run 단위)를 통해 모든 정책 예외 이력을 Git 코드로 투명하게 관리합니다.
 
-### 1.4 Multi-Org 환경 및 [`iam/multi-org-group-iam`](../../iam/multi-org-group-iam) 연계 시 DRS 설정 기준
+### 1.4 Multi-Org 환경 및 [`iam/multi-org-group-iam`](../multi-org-group-iam) 연계 시 DRS 설정 기준
 
 조직 분리나 다중 조직 환경에서는 **프로젝트 반입 허용(`allowed_import_source_org_ids`)** 과 **IAM 주체 허용(`drs_allowed_org_ids`)** 을 목적에 맞게 분리하여 제어합니다.
 
 | 시나리오 | `drs_allowed_org_ids` | `allowed_import_source_org_ids` | 설명 |
 | :--- | :---: | :---: | :--- |
 | **단일 신규 조직 (Greenfield)** | `[]` | `[]` | 현재 조직(`org_id`) 소속 주체만 IAM 허용 |
-| **다중 조직 — 독립 그룹 위임 패턴**<br>*([`multi-org-group-iam`](../../iam/multi-org-group-iam) 패턴 A)* | **`[]` (권장)** | 이관 시에만 `["<원본_ORG_ID>"]` | 모든 IAM 권한을 신규 조직 그룹(`group:*@additional-domain.com`)에만 부여하므로 DRS를 열지 않고도 단일 SSO 운영 가능 *(단, 이관 프로젝트에 원본 조직 소속 서비스 계정이 직접 바인딩되어 유지되어야 한다면 원본 Org ID 추가)* |
+| **다중 조직 — 독립 그룹 위임 패턴**<br>*([`multi-org-group-iam`](../multi-org-group-iam) 패턴 A)* | **`[]` (권장)** | 이관 시에만 `["<원본_ORG_ID>"]` | 모든 IAM 권한을 신규 조직 그룹(`group:*@additional-domain.com`)에만 부여하므로 DRS를 열지 않고도 단일 SSO 운영 가능 *(단, 이관 프로젝트에 원본 조직 소속 서비스 계정이 직접 바인딩되어 유지되어야 한다면 원본 Org ID 추가)* |
 | **다중 조직 — 외부 조직 그룹/SA 직접 바인딩** | `["<외부_ORG_ID>"]` | 필요 시 `["<원본_ORG_ID>"]` | 외부/본사 조직 소속 그룹이나 서비스 계정을 현재 조직 리소스에 직접 IAM 바인딩 허용 |
 
 ---
@@ -130,7 +130,7 @@ Terraform을 실행하는 주체(프로덕션 전용 서비스 계정 또는 로
 - `roles/resourcemanager.folderAdmin` (Folder Admin — `policy_scope = "folder"` 자동 폴더 생성 또는 `create_env_folders = true` 사용 시)
 - `roles/viewer` 또는 `roles/browser` (`project_tag_exemptions` 사용 시 프로젝트 번호 조회용 `resourcemanager.projects.get` 권한 포함)
 
-### Keyless Terraform 서비스 계정 권한 부여 예시 ([`iam/multi-org-group-iam`](../../iam/multi-org-group-iam) 연계 시)
+### Keyless Terraform 서비스 계정 권한 부여 예시 ([`iam/multi-org-group-iam`](../multi-org-group-iam) 연계 시)
 
 앞서 Seed 프로젝트(`iam-seed-prod-01`)와 `tf-iam-admin` 서비스 계정을 구성했다면, 아래 명령으로 필요한 API 활성화 및 조직 권한을 추가합니다.
 
