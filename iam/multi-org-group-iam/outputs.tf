@@ -18,8 +18,8 @@ output "groups" {
   value       = { for k, g in google_cloud_identity_group.groups : k => g.group_key[0].id }
 }
 
-output "folders" {
-  description = "생성된 하위 폴더 리소스 ID 맵"
-  type        = map(string)
-  value       = { for k, f in google_folder.folders : k => f.name }
+output "app_dev_folder_id" {
+  description = "생성된 app-dev 하위 폴더 리소스 ID (예: folders/123456789012)"
+  type        = string
+  value       = google_folder.app_dev.name
 }

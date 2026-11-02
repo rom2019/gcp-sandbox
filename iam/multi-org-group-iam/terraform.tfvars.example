@@ -2,41 +2,15 @@ additional_domain        = "additional-domain.com"
 main_login_domain        = "main-domain.com"
 tf_service_account_email = "tf-iam-admin@iam-seed-prod-01.iam.gserviceaccount.com"
 
-folders = ["app-dev"]
-
 groups = {
-  "gcp-users" = {
-    display_name = "GCP All Users"
-    description  = "Grants Browser role so additional-domain.com appears in GCP Organization Switcher and hierarchy tree"
-    members = [
-      "cloud-admin@main-domain.com",
-      "app-dev1@main-domain.com",
-    ]
-    org_roles = [
-      "roles/browser",
-    ]
-  }
-
-  "gcp-org-admins" = {
-    display_name = "GCP Organization Admins"
-    description  = "Platform and Organization Administrators for additional-domain.com (managed strictly via Terraform)"
-    members      = ["cloud-admin@main-domain.com"]
-    org_roles = [
-      "roles/resourcemanager.organizationAdmin",
-      "roles/resourcemanager.folderAdmin",
-      "roles/resourcemanager.projectCreator",
-    ]
-  }
-
-  "gcp-app-devs" = {
-    display_name = "GCP App Developers (Dev)"
-    description  = "Application developers scoped to the app-dev folder"
-    members      = ["app-dev1@main-domain.com"]
-    folder_roles = {
-      "app-dev" = [
-        "roles/resourcemanager.folderViewer",
-        "roles/viewer",
-      ]
-    }
-  }
+  "gcp-users" = [
+    "cloud-admin@main-domain.com",
+    "app-dev1@main-domain.com",
+  ]
+  "gcp-org-admins" = [
+    "cloud-admin@main-domain.com",
+  ]
+  "gcp-app-devs" = [
+    "app-dev1@main-domain.com",
+  ]
 }

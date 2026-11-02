@@ -13,37 +13,14 @@ ephemeral "google_service_account_access_token" "groups_settings" {
 
 locals {
   memberships = merge([
-    for group_id, cfg in var.groups : {
-      for email in toset([for m in cfg.members : lower(trimspace(m))]) :
+    for group_id, members in var.groups : {
+      for email in toset([for m in members : lower(trimspace(m))]) :
       "${group_id}:${email}" => {
         group_id = group_id
         email    = email
       }
     }
   ]...)
-
-  org_iam_bindings = merge([
-    for group_id, cfg in var.groups : {
-      for role in toset(cfg.org_roles) :
-      "${group_id}:${role}" => {
-        group_id = group_id
-        role     = role
-      }
-    }
-  ]...)
-
-  folder_iam_bindings = merge(flatten([
-    for group_id, cfg in var.groups : [
-      for folder_name, roles in cfg.folder_roles : {
-        for role in toset(roles) :
-        "${group_id}:${folder_name}:${role}" => {
-          group_id    = group_id
-          folder_name = folder_name
-          role        = role
-        }
-      }
-    ]
-  ])...)
 }
 
 # 1. 신규 조직 Cloud Identity에 그룹 생성 (Terraform SA 단독 Owner)
@@ -51,8 +28,7 @@ resource "google_cloud_identity_group" "groups" {
   for_each = var.groups
 
   parent               = "customers/${data.google_organization.target.directory_customer_id}"
-  display_name         = coalesce(each.value.display_name, each.key)
-  description          = each.value.description
+  display_name         = each.key
   initial_group_config = "WITH_INITIAL_OWNER"
 
   group_key {
@@ -104,28 +80,47 @@ resource "google_cloud_identity_group_membership" "members" {
   }
 }
 
-# 4. 그룹 단위 Organization 루트 레벨 Additive IAM 바인딩
-resource "google_organization_iam_member" "org_roles" {
-  for_each = local.org_iam_bindings
+# ==============================================================================
+# 4. Organization 루트 레벨 그룹 IAM 바인딩 (신규 그룹 추가 시 블록 Copy & Paste)
+# ==============================================================================
 
+# 전 임직원 기본 그룹: 상단 Organization Switcher에 신규 조직 노출 및 계층 탐색 허용
+resource "google_organization_iam_member" "gcp_users_browser" {
   org_id = data.google_organization.target.org_id
-  role   = each.value.role
-  member = "group:${google_cloud_identity_group.groups[each.value.group_id].group_key[0].id}"
+  role   = "roles/browser"
+  member = "group:${google_cloud_identity_group.groups["gcp-users"].group_key[0].id}"
 }
 
-# 5. 하위 Folder 생성 및 그룹 단위 Folder 레벨 최소 권한 격리 바인딩
-resource "google_folder" "folders" {
-  for_each = var.folders
+# 플랫폼/조직 관리자 그룹: 폴더 계층 구조, 프로젝트 생성 및 조직 IAM 관리 권한
+resource "google_organization_iam_member" "gcp_org_admins" {
+  for_each = toset([
+    "roles/resourcemanager.organizationAdmin",
+    "roles/resourcemanager.folderAdmin",
+    "roles/resourcemanager.projectCreator",
+  ])
 
-  display_name        = each.key
+  org_id = data.google_organization.target.org_id
+  role   = each.value
+  member = "group:${google_cloud_identity_group.groups["gcp-org-admins"].group_key[0].id}"
+}
+
+# ==============================================================================
+# 5. 하위 Folder 생성 및 Folder 레벨 최소 권한 격리 바인딩 (필요한 만큼 Copy & Paste)
+# ==============================================================================
+
+resource "google_folder" "app_dev" {
+  display_name        = "app-dev"
   parent              = data.google_organization.target.name
   deletion_protection = false
 }
 
-resource "google_folder_iam_member" "folder_roles" {
-  for_each = local.folder_iam_bindings
+resource "google_folder_iam_member" "gcp_app_devs" {
+  for_each = toset([
+    "roles/resourcemanager.folderViewer",
+    "roles/viewer",
+  ])
 
-  folder = google_folder.folders[each.value.folder_name].name
-  role   = each.value.role
-  member = "group:${google_cloud_identity_group.groups[each.value.group_id].group_key[0].id}"
+  folder = google_folder.app_dev.name
+  role   = each.value
+  member = "group:${google_cloud_identity_group.groups["gcp-app-devs"].group_key[0].id}"
 }
