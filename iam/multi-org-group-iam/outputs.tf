@@ -1,17 +1,25 @@
-output "resolved_directory_customer_id" {
-  description = "그룹 생성에 사용된 신규 조직의 Cloud Identity Directory Customer ID (C0xxxxxxx)"
-  value       = local.effective_customer_id
-}
-
-output "created_groups" {
-  description = "신규 조직(additional-domain.com)에 생성된 Cloud Identity 그룹 이메일 목록"
+output "organization" {
+  description = "자동 조회된 신규 조직 메타데이터 (domain, org_id, directory_customer_id)"
+  type = object({
+    domain                = string
+    org_id                = string
+    directory_customer_id = string
+  })
   value = {
-    for k, g in google_cloud_identity_group.additional_org_groups :
-    k => g.group_key[0].id
+    domain                = var.additional_domain
+    org_id                = data.google_organization.target.org_id
+    directory_customer_id = data.google_organization.target.directory_customer_id
   }
 }
 
-output "sample_folder_id" {
-  description = "생성된 샘플 하위 폴더 리소스 ID (create_sample_folder = false 인 경우 null)"
-  value       = var.create_sample_folder ? google_folder.sample_app_folder[0].name : null
+output "groups" {
+  description = "생성된 Cloud Identity 그룹 이메일 목록"
+  type        = map(string)
+  value       = { for k, g in google_cloud_identity_group.groups : k => g.group_key[0].id }
+}
+
+output "folders" {
+  description = "생성된 하위 폴더 리소스 ID 맵"
+  type        = map(string)
+  value       = { for k, f in google_folder.folders : k => f.name }
 }

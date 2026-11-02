@@ -27,19 +27,10 @@ output "env_folder_ids" {
 }
 
 output "policy_governance_summary" {
-  description = "현재 설정된 모드별 조직 정책 목록 및 거버넌스 요약"
+  description = "현재 설정된 적용 범위, DRS 허용 대상 및 선언적 예외 태그 요약"
   value = {
-    policy_scope  = var.policy_scope
-    policy_parent = local.policy_parent
-    enforced_policies = sort([
-      for k, m in local.effective_policy_modes : k if m == "ENFORCED"
-    ])
-    dry_run_policies = sort([
-      for k, m in local.effective_policy_modes : k if m == "DRY_RUN"
-    ])
-    unmanaged_policies = sort([
-      for k, m in local.effective_policy_modes : k if m == "UNMANAGED"
-    ])
+    policy_scope                    = var.policy_scope
+    policy_parent                   = local.policy_parent
     drs_allowed_principal_sets      = local.drs_allowed_principal_sets
     declared_project_tag_exemptions = var.project_tag_exemptions
   }

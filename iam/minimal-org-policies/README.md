@@ -10,13 +10,13 @@
 
 GCP Organization에 수십 개의 보안 제약조건을 처음부터 일괄 강제(`ENFORCED`)하면 CI/CD 파이프라인 배포 실패, 기존 공개 에셋 버킷 `403` 차단, 외부 파트너 연동 장애 등 예기치 않은 운영 중단이 발생하기 쉽습니다. 반대로 정책을 비워두면 신규 프로젝트 생성 시 과도한 기본 권한(`Editor`)을 가진 Default Service Account나 `default` VPC가 무방비로 생성됩니다.
 
-본 에셋은 Google Cloud 권고 Organization Policies 중 실무 필수 항목 **26종**을 엄선하여 **운영 영향도와 `DRY_RUN` 지원 여부에 따라 3개 티어(Tier)** 로 분류하고, 준비된 정책부터 **개별 정책 단위(`policy_mode_overrides`)** 로 안전하게 승격할 수 있도록 설계되었습니다.
+본 에셋은 Google Cloud 권고 Organization Policies 중 실무 필수 항목 **26종**을 엄선하여 `dynamic` 루프 없이 **3개의 직관적인 정적(Static) Terraform 파일**로 분리했습니다. GCP나 Terraform에 익숙하지 않은 담당자도 각 파일만 열어보면 현재 어떤 정책이 강제(`spec`)·감사(`dry_run_spec`)·대기(주석) 상태인지 한눈에 파악하고 수정할 수 있습니다.
 
-| 정책 티어 (`Tier`) | 수량 | 초기 기본 모드 | 권장 운영 방식 및 선정 기준 |
+| 관리 파일 (`Tier`) | 수량 | 초기 상태 | 권장 운영 및 승격 방식 |
 | :--- | :---: | :---: | :--- |
-| **`Baseline Guardrails`**<br>(`baseline`) | **12종** | **`ENFORCED`** | 기존 운영 리소스에 소급 장애를 일으키지 않는 기본 보안 가드레일 (신규 프로젝트 `default` VPC 생성 스킵, Default SA 자동 권한 차단, 유출 키 자동 비활성화, 차세대 DRS, 비소급 Cloud SQL 공인 IP 차단 등) |
-| **`Audit-First Managed`**<br>(`audit_first`) | **7종** | **`DRY_RUN`** | GCP API에서 `dry_run_spec`과 하위 리소스 직접 태그 예외를 네이티브 지원하는 `.managed.` 제약조건 (SA 키 생성·업로드 차단, OS Login, 신뢰 이미지, 프로토콜 포워딩, VM 외부 IP 차단, Cloud Run Invoker IAM) — **차단 없이 Cloud Audit Logs로 위반 현황만 먼저 수집** 후 예외 태그 부착 뒤 `ENFORCED` 전환 |
-| **`Opt-In Controls`**<br>(`opt_in`) | **7종** | **`UNMANAGED`** | 레거시 API 특성상 `dry_run_spec`을 지원하지 않거나 소급 차단 위험이 있는 스토리지·서버리스 네트워크 정책 (GCS 공개 차단, UBLA, Cloud Run/Functions 인그레스·이그레스 5종) — **Cloud Asset Inventory 스캔 및 프로젝트 단위 예외 태그 선부착 완료 정책부터 개별 `ENFORCED` 활성화** |
+| **[`baseline_policies.tf`](./baseline_policies.tf)**<br>(`Baseline Guardrails`) | **12종** | **`spec` (강제)** | 기존 운영 리소스에 소급 장애를 일으키지 않는 기본 보안 가드레일 (신규 프로젝트 `default` VPC 생성 스킵, Default SA 자동 권한 차단, 유출 키 자동 비활성화, 차세대 DRS, 비소급 Cloud SQL 공인 IP 차단 등) |
+| **[`audit_first_policies.tf`](./audit_first_policies.tf)**<br>(`Audit-First Managed`) | **7종** | **`dry_run_spec` (감사)** | GCP API에서 `dry_run_spec`과 하위 리소스 직접 태그 예외를 네이티브 지원하는 `.managed.` 제약조건 — **차단 없이 Cloud Audit Logs로 위반 현황만 먼저 수집** 후 해당 리소스 블록의 **`dry_run_spec`을 `spec`으로 변경**하여 강제 전환 |
+| **[`opt_in_policies.tf`](./opt_in_policies.tf)**<br>(`Opt-In Controls`) | **7종** | **주석 처리 (`/* ... */`)** | 레거시 API 특성상 `dry_run_spec`을 지원하지 않거나 소급 차단 위험이 있는 스토리지·서버리스 네트워크 정책 — **Cloud Asset Inventory 스캔 및 프로젝트 단위 예외 태그 선부착 완료 정책부터 주석 해제(`/* ... */` 제거)** 하여 개별 활성화 |
 | *(코드 배제)*<br>과잉 통제 지양 | - | 미포함 | `gcp.resourceLocations`(글로벌/멀티리전 AI 엔드포인트 차단 위험), `gcp.restrictServiceUsage` 등 초기 개발 민첩성을 과도하게 저해하는 항목은 기본 에셋에서 배제 |
 
 ---
@@ -31,13 +31,13 @@ flowchart LR
 
     subgraph Step2["Step 2. Org Root 초기 본 배포"]
         Import["generate-imports.sh 실행\n(기존 기본 정책 import 및\n강제 상태 강등 여부 점검)"]
-        Base["Baseline 12종: ENFORCED\nAudit-First 7종: DRY_RUN\nOpt-In 7종: UNMANAGED"]
+        Base["baseline_policies.tf: spec (12종)\naudit_first_policies.tf: dry_run_spec (7종)\nopt_in_policies.tf: 주석 대기 (7종)"]
     end
 
     subgraph Step3["Step 3. 정책별 점진적 승격"]
         Observe["Policy Audit Logs 분석 &\nCloud Asset Inventory 스캔"]
         Exempt["선언적 예외 태그 바인딩\n(project_tag_exemptions /\nregional_resource_tag_exemptions)"]
-        Promote["준비된 정책부터 개별 승격\n(policy_mode_overrides)"]
+        Promote["준비된 정책부터 개별 승격\n• audit_first: dry_run_spec -> spec\n• opt_in: 블록 주석(/* */) 해제"]
     end
 
     Lab -->|"검증 완료 후\npolicy_scope = 'organization'"| Import
@@ -77,11 +77,13 @@ flowchart LR
 minimal-org-policies/
 ├── README.md                    # 아키텍처, 폴더 Hands-On 실습, Org Root 배포 및 DRY_RUN 검색 가이드
 ├── versions.tf                  # Terraform(>= 1.5) / Google Provider(>= 6.0) 및 Keyless SA Impersonation 설정
-├── variables.tf                 # 스코프, 3단계 정책 티어 기본값, 개별 오버라이드, 선언적 태그 바인딩 변수
-├── tags.tf                      # 8종 목적별 독립 TagKey/TagValue, 선언적 TagBinding 및 실습/환경 폴더
-├── policies.tf                  # 26종 조직 정책 카탈로그 + (선택) 조직 간 프로젝트 반입 정책 정의
-├── main.tf                      # 정책별 유효 모드(ENFORCED / DRY_RUN / UNMANAGED) 계산 및 배포 엔진
-├── outputs.tf                   # 부착 경로, 모드별 적용 정책 목록, 생성된 태그 정보 출력
+├── variables.tf                 # 적용 범위(폴더/조직), 도메인·신뢰 이미지 파라미터, 선언적 태그 바인딩 변수
+├── main.tf                      # 정책 부착 경로(policy_parent), 조건식 헬퍼 및 실습/환경 폴더 정의
+├── tags.tf                      # 8종 목적별 독립 TagKey/TagValue 및 프로젝트·리소스 선언적 TagBinding
+├── baseline_policies.tf         # [Tier 1] 즉시 강제(spec) 기본 보안 가드레일 12종 (정적 리소스 명시)
+├── audit_first_policies.tf      # [Tier 2] 사전 감사(dry_run_spec) .managed. 정책 7종 (정적 리소스 명시)
+├── opt_in_policies.tf           # [Tier 3] 선택 적용(초기 주석 처리) 정책 7종 + 조직 간 프로젝트 반입 정책
+├── outputs.tf                   # 부착 경로, 실습 폴더 ID, 생성된 예외 태그 정보 출력
 ├── terraform.tfvars.example     # Hands-On 폴더 실습 및 프로덕션 Org Root 배포용 변수 템플릿
 └── scripts/
     └── generate-imports.sh      # 기존 기본 정책 자동 import 생성 및 강등(Downgrade)·레거시 중복 점검 스크립트
@@ -89,7 +91,7 @@ minimal-org-policies/
 
 ### 2.1 전체 정책 상세 매트릭스 (총 26종 + 선택 이관 정책 1종)
 
-| 티어 | 제약조건 이름 (`policy_mode_overrides` 키) | 초기 기본 모드 | 연결된 예외 키 (`exempt-*`) | 태그 평가 범위 | 운영 특성 및 주의사항 |
+| 관리 파일 (티어) | 제약조건 이름 (`constraints/` 제외) | 초기 선언 상태 | 연결된 예외 키 (`exempt-*`) | 태그 평가 범위 | 운영 특성 및 주의사항 |
 | :--- | :--- | :---: | :---: | :---: | :--- |
 | **Baseline (12종)** | `iam.managed.allowedPolicyMembers` | `ENFORCED` | `public_iam` | 프로젝트·리소스 | 차세대 DRS (`organizations/<ORG_ID>` PrincipalSet 기반) |
 | Baseline | `iam.automaticIamGrantsForDefaultServiceAccounts` | `ENFORCED` | - | - | 신규 생성 프로젝트에만 동작 (기존 프로젝트 영향 없음) |
@@ -241,16 +243,22 @@ gcloud logging read \
 
 ### 4.3 [체험 2] 개별 정책 `ENFORCED` 승격 — 실제 배포 차단(`403`) 확인
 
-이제 `terraform.tfvars`의 `policy_mode_overrides`에 **`run.managed.requireInvokerIam` 딱 하나만 `ENFORCED`로 승격**해 봅니다.
+이제 [`audit_first_policies.tf`](./audit_first_policies.tf) 하단의 `run_require_invoker_iam` 리소스 블록에서 **`dry_run_spec` 단어를 `spec` 으로 변경**하여 실제 강제 모드로 승격해 봅니다.
 
 ```hcl
-policy_mode_overrides = {
-  "run.managed.requireInvokerIam" = "ENFORCED"
+# audit_first_policies.tf 내 A-07 블록 수정 ('dry_run_spec' -> 'spec')
+resource "google_org_policy_policy" "run_require_invoker_iam" {
+  name   = "${local.policy_parent}/policies/run.managed.requireInvokerIam"
+  parent = local.policy_parent
+
+  spec {
+    # ... (하위 rules 동일)
+  }
 }
 ```
 
 ```bash
-terraform apply
+terraform apply -parallelism=2
 
 # 동일한 무인증 배포 재시도 -> 즉시 Organization Policy 위반(POLICY_VIOLATED / 403)으로 차단됨!
 gcloud run deploy policy-handson-svc-blocked \
@@ -275,7 +283,7 @@ project_tag_exemptions = {
 ```
 
 ```bash
-terraform apply
+terraform apply -parallelism=2
 
 # 태그 바인딩 반영(약 10~30초) 후 동일한 명령 재실행 -> 예외 조건이 매칭되어 정상 배포 성공!
 gcloud run deploy policy-handson-svc-blocked \
@@ -303,14 +311,10 @@ gcloud run services delete policy-handson-svc policy-handson-svc-blocked \
 
 2024년 5월 이후 생성된 GCP Organization에는 Google의 **Secure-by-Default 기본 정책**(`iam.managed.disableServiceAccountKeyCreation`, `compute.managed.restrictProtocolForwardingCreationForTypes` 등)이 루트에 미리 강제(`ENFORCED`)되어 있습니다. 그대로 `apply`하면 `409 Already Exists` 에러가 나거나 기존 강제 정책이 `DRY_RUN`으로 완화될 수 있으므로, 반드시 아래 스크립트를 먼저 실행합니다.
 
-1. `terraform.tfvars`에서 범위를 `"organization"`으로 설정합니다:
+1. `terraform.tfvars`에서 범위를 `"organization"`으로 설정합니다 (Hands-On 실습 중 변경했던 [`audit_first_policies.tf`](./audit_first_policies.tf)의 `spec` 테스트 변경분도 원복했는지 확인합니다):
    ```hcl
-   policy_scope            = "organization"
-   baseline_policy_mode    = "ENFORCED"
-   audit_first_policy_mode = "DRY_RUN"
-   opt_in_policy_mode      = "UNMANAGED"
-   policy_mode_overrides   = {}
-   project_tag_exemptions  = {}
+   policy_scope           = "organization"
+   project_tag_exemptions = {}
    ```
 2. 기존 조직 정책 자동 감지 및 강등 점검 스크립트를 실행합니다:
    ```bash
@@ -323,7 +327,7 @@ gcloud run services delete policy-handson-svc policy-handson-svc-blocked \
      --billing-project iam-seed-prod-01
    ```
 3. **스크립트 출력 결과 확인**:
-   - **`[보안 경고]`가 출력된 경우**: 이미 조직에서 `ENFORCED` 중인 정책이 `DRY_RUN`으로 완화되지 않도록, 스크립트가 출력해 준 `policy_mode_overrides` 블록을 `terraform.tfvars`에 그대로 복사해 넣어 기존 강제를 유지(태그 예외 규칙만 안전하게 추가됨)합니다. *(단, 타 조직에서 기존 프로젝트를 이관해 올 예정이라 한시적으로 `DRY_RUN` 감사가 필요한 경우에만 의도적으로 `DRY_RUN`을 선택하세요.)*
+   - **`[보안 경고]`가 출력된 경우**: 이미 조직에서 `ENFORCED` 중인 정책이 `DRY_RUN`으로 완화되지 않도록, 스크립트가 안내한 [`audit_first_policies.tf`](./audit_first_policies.tf) 내 리소스 블록(예: `disable_sa_key_creation`, `restrict_protocol_forwarding`)의 **`dry_run_spec`을 `spec`으로 변경**하여 기존 강제를 유지(태그 예외 규칙만 안전하게 추가됨)합니다. *(단, 타 조직에서 기존 프로젝트를 이관해 올 예정이라 한시적으로 `DRY_RUN` 감사가 필요한 경우에만 의도적으로 `dry_run_spec`을 유지하세요.)*
    - **`[주의] 레거시 기본 정책 감지`가 출력된 경우**: 레거시 제약조건(예: `iam.allowedPolicyMemberDomains`, `iam.disableServiceAccountKeyCreation`)이 함께 켜져 있으면 `.managed.` 정책과 독립적으로 중복 평가되어 태그 예외가 작동하지 않을 수 있으므로 `.managed.` 배포 후 레거시 정책 정리(`gcloud org-policies delete <LEGACY_CONSTRAINT> --organization=<ORG_ID>`)를 검토합니다.
 4. `terraform plan`으로 변경 내역을 검토한 뒤 배포합니다 (`imports.tf`는 `.gitignore`에 의해 커밋에서 제외됩니다):
    ```bash
@@ -366,16 +370,16 @@ gcloud run services delete policy-handson-svc policy-handson-svc-blocked \
 > 1. `storage.publicAccessPrevention`은 `ENFORCED` 전환 즉시 **기존 공개 버킷의 외부 읽기 응답까지 차단(`403`)하는 소급(Retroactive) 정책**입니다.
 > 2. 레거시 제약조건 특성상 개별 버킷에 직접 붙인 태그는 평가하지 않으므로, 의도된 공개 버킷이 있는 경우 반드시 **해당 버킷이 속한 프로젝트(`project_tag_exemptions`) 또는 상위 폴더**에 `public_storage` 예외 태그를 먼저 바인딩한 뒤 활성화하세요.
 
-예외 대상을 먼저 코드에 선언하여 `apply`한 뒤, 검증이 끝난 정책부터 `policy_mode_overrides`로 하나씩 승격합니다:
+예외 대상을 먼저 `terraform.tfvars`에 선언하여 `apply`한 뒤, 준비된 정책부터 코드에서 직관적으로 활성화합니다:
 
 ```hcl
-# 1) 프로젝트 단위 예외 선언 (.managed. 및 레거시 Opt-In 정책 모두 동작)
+# 1) terraform.tfvars — 프로젝트 단위 예외 선언 (.managed. 및 레거시 Opt-In 정책 모두 동작)
 project_tag_exemptions = {
   "public-web-assets-prod"   = ["public_storage"]
   "legacy-partner-sync-prod" = ["sa_key"]
 }
 
-# 2) (선택) 특정 서비스 리소스 1개만 정밀 예외 선언 (.managed. 제약조건 전용)
+# 2) terraform.tfvars — (선택) 특정 서비스 리소스 1개만 정밀 예외 선언 (.managed. 제약조건 전용)
 regional_resource_tag_exemptions = [
   {
     parent    = "//run.googleapis.com/projects/my-app-prod/locations/asia-northeast3/services/public-webhook"
@@ -383,17 +387,10 @@ regional_resource_tag_exemptions = [
     exemption = "serverless" # run.managed.requireInvokerIam 만 해당 서비스에 예외 허용
   }
 ]
-
-# 3) 준비가 완료된 정책부터 개별적으로 ENFORCED 승격
-policy_mode_overrides = {
-  "iam.managed.disableServiceAccountKeyCreation" = "ENFORCED"
-  "iam.managed.disableServiceAccountKeyUpload"   = "ENFORCED"
-  "compute.managed.vmExternalIpAccess"           = "ENFORCED"
-  "run.managed.requireInvokerIam"                = "ENFORCED"
-  "storage.publicAccessPrevention"               = "ENFORCED"
-  "storage.uniformBucketLevelAccess"             = "ENFORCED"
-}
 ```
+
+- **Audit-First 정책 승격 ([`audit_first_policies.tf`](./audit_first_policies.tf))**: 감사 완료된 리소스 블록에서 **`dry_run_spec` ➔ `spec`** 으로 변경 후 `terraform apply -parallelism=2`
+- **Opt-In 정책 활성화 ([`opt_in_policies.tf`](./opt_in_policies.tf))**: 예외 태그 부착을 마친 정책 리소스 블록의 **주석(`/* ... */`)을 해제**한 뒤 `terraform apply -parallelism=2`
 
 ---
 

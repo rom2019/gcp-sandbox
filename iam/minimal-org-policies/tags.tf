@@ -1,5 +1,5 @@
 # ==============================================================================
-# Orthogonal Resource Manager Tags, Declarative Bindings & Optional Folders
+# Orthogonal Resource Manager Tags & Declarative Exemption Bindings
 # ==============================================================================
 # 핵심 설계 포인트:
 # GCP Resource Manager는 동일한 TagKey 아래의 서로 다른 TagValue를 하나의 프로젝트/리소스에
@@ -100,20 +100,4 @@ resource "google_tags_location_tag_binding" "resource_exemption" {
   parent    = each.value.parent
   location  = each.value.location
   tag_value = google_tags_tag_value.exempt_true[each.value.exemption].id
-}
-
-# policy_scope = "folder" 이고 기존 target_folder_id가 지정되지 않았을 때 자동 생성되는 실습/검증 폴더
-resource "google_folder" "handson_lab" {
-  count = var.policy_scope == "folder" && var.target_folder_id == "" ? 1 : 0
-
-  display_name = var.handson_folder_display_name
-  parent       = "organizations/${var.org_id}"
-}
-
-# 선택 사항: 표준 환경 폴더 구조 (Prod, Dev, Shared)
-resource "google_folder" "env" {
-  for_each = var.create_env_folders ? toset(["Prod", "Dev", "Shared"]) : toset([])
-
-  display_name = each.value
-  parent       = "organizations/${var.org_id}"
 }

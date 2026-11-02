@@ -4,6 +4,11 @@
 # 사용 방법:
 #   cp terraform.tfvars.example terraform.tfvars
 #   (.gitignore에 의해 *.tfvars 및 imports.tf 파일은 Git 커밋에서 자동 제외됩니다.)
+#
+# 정책 티어별 관리 파일 안내:
+# - baseline_policies.tf    : [Baseline 12종] 기본 보안 가드레일 (즉시 강제: spec)
+# - audit_first_policies.tf : [Audit-First 7종] 사전 감사 정책 (초기: dry_run_spec -> 승격 시 spec 으로 변경)
+# - opt_in_policies.tf      : [Opt-In 7종] 선택 적용 정책 (초기 주석 처리 -> 준비된 정책만 주석 해제)
 
 # ------------------------------------------------------------------------------
 # 1. 대상 조직 및 적용 범위 (Hands-On 폴더 실습 vs 프로덕션 Org Root 배포)
@@ -21,30 +26,7 @@ handson_folder_display_name = "policy-handson-lab" # policy_scope = "folder" 시
 create_env_folders          = false                # 표준 환경 폴더(Prod, Dev, Shared) 생성 여부
 
 # ------------------------------------------------------------------------------
-# 2. 3단계 운영 티어 기본 모드 & 개별 정책 제어 (Granular Overrides)
-# ------------------------------------------------------------------------------
-baseline_policy_mode    = "ENFORCED"  # [Baseline 12종] 기본 보안 가드레일 (즉시 강제)
-audit_first_policy_mode = "DRY_RUN"   # [Audit-First 7종] 네이티브 DRY_RUN으로 감사 로그만 먼저 수집
-opt_in_policy_mode      = "UNMANAGED" # [Opt-In 7종] 자산 스캔 및 프로젝트 태그 부착 후 준비된 정책부터 개별 활성화
-
-# 원하는 개별 정책만 골라 모드를 덮어쓸 수 있습니다 ("ENFORCED" | "DRY_RUN" | "UNMANAGED")
-policy_mode_overrides = {
-  # 예시 1: 2024년 5월 이후 생성된 신규 Org에서 이미 Secure-by-Default로 강제 중인 정책을
-  #         DRY_RUN으로 풀지 않고(강등 방지) 태그 예외 조건만 추가하여 ENFORCED 유지할 때:
-  # "iam.managed.disableServiceAccountKeyCreation"               = "ENFORCED"
-  # "compute.managed.restrictProtocolForwardingCreationForTypes" = "ENFORCED"
-
-  # 예시 2: 감사 완료 후 특정 Audit-First 정책만 먼저 ENFORCED로 승격
-  # "run.managed.requireInvokerIam"      = "ENFORCED"
-  # "compute.managed.vmExternalIpAccess" = "ENFORCED"
-
-  # 예시 3: 공개 에셋 프로젝트에 예외 태그(project_tag_exemptions) 부착을 마친 Opt-In 정책 개별 활성화
-  # "storage.publicAccessPrevention"   = "ENFORCED"
-  # "storage.uniformBucketLevelAccess" = "ENFORCED"
-}
-
-# ------------------------------------------------------------------------------
-# 3. 도메인 제한(DRS), 중요 알림 도메인 및 신뢰 이미지 파라미터
+# 2. 도메인 제한(DRS), 중요 알림 도메인 및 신뢰 이미지 파라미터
 # ------------------------------------------------------------------------------
 # 보안·장애 중요 알림(Essential Contacts) 수신 허용 도메인 ('@' 시작 필수)
 allowed_contact_domains = [
@@ -63,7 +45,7 @@ trusted_image_projects = [
 ]
 
 # ------------------------------------------------------------------------------
-# 4. 목적별 독립 예외 태그 및 선언적(Declarative) 태그 바인딩
+# 3. 목적별 독립 예외 태그 및 선언적(Declarative) 태그 바인딩
 # ------------------------------------------------------------------------------
 tag_key_prefix = "exempt" # 공유 테스트 조직에서 기존 태그와 이름 충돌 시 "lab-exempt" 등으로 변경 가능
 
@@ -88,7 +70,7 @@ regional_resource_tag_exemptions = [
 ]
 
 # ------------------------------------------------------------------------------
-# 5. (선택) 타 조직 프로젝트 반입 허용 & Keyless SA Impersonation
+# 4. (선택) 타 조직 프로젝트 반입 허용 & Keyless SA Impersonation
 # ------------------------------------------------------------------------------
 # 타 GCP Organization에서 프로젝트/폴더를 이관해 올 때만 원본 Org ID를 입력 (이관 불필요/완료 시 [])
 allowed_import_source_org_ids = []
