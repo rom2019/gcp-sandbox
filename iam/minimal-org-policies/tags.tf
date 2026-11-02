@@ -5,7 +5,7 @@
 # GCP Resource Manager는 동일한 TagKey 아래의 서로 다른 TagValue를 하나의 프로젝트/리소스에
 # 중복 바인딩할 수 없습니다 (HTTP 400 충돌).
 # 따라서 예외 도메인별로 독립된 8개의 TagKey(예: exempt-sa-key=true, exempt-serverless=true)를
-# 분리 생성하여, 하나의 프로젝트나 개별 리소스(GCS 버킷, Cloud Run 서비스)에
+# 분리 생성하여, 하나의 프로젝트나 개별 서비스 리소스(Cloud Run 서비스, Compute VM 등)에
 # 복수의 정책 예외를 충돌 없이 조합 부착할 수 있도록 구성합니다.
 
 locals {
@@ -55,7 +55,7 @@ locals {
     }
   ]...)
 
-  # 개별 리전 리소스(GCS 버킷, Cloud Run 서비스 등) 단위 선언적 예외 태그 바인딩 맵
+  # 개별 리전/존 서비스 리소스(Cloud Run 서비스, Compute VM 등) 단위 선언적 예외 태그 바인딩 맵
   flattened_regional_exemptions = {
     for item in var.regional_resource_tag_exemptions :
     "${item.location}:${item.parent}:${item.exemption}" => item

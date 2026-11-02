@@ -198,7 +198,8 @@ tag_key_prefix = "exempt"
 ```bash
 terraform init
 terraform plan
-terraform apply
+# 다수 정책 동시 생성 시 Org Policy API의 동시 변경 잠금(409 CONCURRENT_POLICY_CHANGES) 방지를 위해 -parallelism=2 권장
+terraform apply -parallelism=2
 
 # 생성된 실습 폴더 ID 확인
 HANDSON_FOLDER=$(terraform output -raw handson_folder_id) # 예: folders/9876543210
@@ -327,7 +328,7 @@ gcloud run services delete policy-handson-svc policy-handson-svc-blocked \
 4. `terraform plan`으로 변경 내역을 검토한 뒤 배포합니다 (`imports.tf`는 `.gitignore`에 의해 커밋에서 제외됩니다):
    ```bash
    terraform plan
-   terraform apply
+   terraform apply -parallelism=2
    ```
 
 ---
@@ -568,7 +569,8 @@ ORDER BY
 
 | 증상 / 에러 메시지 | 원인 | 해결 방법 |
 | :--- | :--- | :--- |
-| `Error 409: Requested entity already exists` (`policies/...`) | 신규 Org 생성 시 자동 적용된 Secure-by-Default 정책이나 수동 설정한 정책이 이미 존재함 | `./scripts/generate-imports.sh --org <ORG_ID>` 실행 후 안내되는 강등 경고 여부를 확인하고 `terraform apply` 수행 |
+| `Error 409: Creating policy failed ... reason: "CONCURRENT_POLICY_CHANGES"` | Terraform 기본 병렬도(`10`)로 동일 상위 리소스(폴더/조직)에 다수의 `.managed.` 정책을 동시 생성·수정할 때 Org Policy API 낙관적 동시성 제어 잠금 발생 | `terraform apply -parallelism=2` 옵션으로 병렬도를 낮춰 실행 (이미 일부 생성된 상태에서도 그대로 재실행하면 누락된 정책만 안전하게 마저 생성됨) |
+| `Error 409: Requested entity already exists` (`policies/...`) | 신규 Org 생성 시 자동 적용된 Secure-by-Default 정책이나 수동 설정한 정책이 이미 존재함 | `./scripts/generate-imports.sh --org <ORG_ID>` 실행 후 안내되는 강등 경고 여부를 확인하고 `terraform apply -parallelism=2` 수행 |
 | `project_tag_exemptions`로 예외 태그를 붙였는데도 여전히 차단됨 | 조직 루트에 **레거시 제약조건**(예: `iam.disableServiceAccountKeyCreation`, `iam.allowedPolicyMemberDomains`, `compute.vmExternalIpAccess`)이 별도로 활성화되어 있어 태그 조건 없이 차단 중 | `gcloud org-policies list --organization=<ORG_ID>` 로 레거시 중복 정책 존재 여부를 확인하고, `.managed.` 정책으로 일원화하기 위해 레거시 정책을 삭제(`gcloud org-policies delete <LEGACY_CONSTRAINT> --organization=<ORG_ID>`) |
 | 개별 GCS 버킷에 태그를 붙였는데 `storage.publicAccessPrevention`에서 여전히 `403` 차단됨 | 레거시 제약조건(`Opt-In` 7종)은 하위 서비스 리소스 직접 부착 태그를 평가하지 않고 조직·폴더·프로젝트 태그만 평가함 | 버킷 단위가 아닌 해당 버킷이 속한 **프로젝트(`project_tag_exemptions`)** 또는 상위 폴더에 `public_storage` 예외 태그를 바인딩 |
 | `Error 409: TagKey ... already exists` | 동일 조직 내에 같은 `short_name`(`exempt-*`)의 `TagKey`가 이미 존재함 | 공유 테스트 조직인 경우 `tag_key_prefix = "lab-exempt"` 로 변경하거나 기존 `TagKey`를 import |

@@ -96,7 +96,7 @@ echo "==> [1/3] ${PARENT_PATH} 에 현재 존재하는 Organization Policy 목�
 EXISTING_JSON="$(gcloud org-policies list "${GCLOUD_ARGS[@]}")"
 
 echo "==> [2/3] 현재 Terraform 설정(terraform.tfvars) 기준 정책별 유효 모드를 계산합니다..."
-if ! EFFECTIVE_MODES_JSON="$(echo 'jsonencode(local.effective_policy_modes)' | terraform -chdir="${ROOT_DIR}" console -lock=false 2>/dev/null)"; then
+if ! EFFECTIVE_MODES_JSON="$(echo 'jsonencode(local.effective_policy_modes)' | terraform -chdir="${ROOT_DIR}" console 2>/dev/null)"; then
   echo "[ERROR] 'terraform console' 실행에 실패했습니다. 먼저 '${ROOT_DIR}'에서 'terraform init' 및 'terraform.tfvars' 설정을 확인하세요." >&2
   exit 1
 fi
