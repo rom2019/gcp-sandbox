@@ -9,7 +9,7 @@ gcp_users_members = [
   "prj-admin1@main-domain.com",
 ]
 
-# 2. 조직 플랫폼 관리자 그룹 (Org Root 관리 권한)
+# 2. 플랫폼 관리자 그룹 (하위 폴더 계층 관리 및 프로젝트 생성 권한 — Tier-0 분리를 위해 organizationAdmin 제외)
 gcp_org_admins_members = [
   "cloud-admin@main-domain.com",
 ]
@@ -19,7 +19,7 @@ gcp_app_devs_members = [
   "app-dev1@main-domain.com",
 ]
 
-# 4. 특정 프로젝트 전담 관리자 그룹 (지정된 프로젝트들에만 Editor + Project IAM Admin 부여)
+# 4. 특정 프로젝트 전담 관리자 그룹 (권한 범위를 지정된 프로젝트 내부로만 한정한 Editor + Project IAM Admin)
 gcp_prj_admins_members = [
   "prj-admin1@main-domain.com",
 ]

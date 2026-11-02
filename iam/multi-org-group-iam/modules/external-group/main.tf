@@ -14,9 +14,11 @@ resource "google_cloud_identity_group" "this" {
   }
 }
 
-# 2. 외부 도메인(@main-domain.com) 멤버 추가 허용 활성화 (Groups Settings API 1회 PATCH)
-# 참고: hashicorp/google 프로바이더에 Groups Settings 네이티브 리소스가 없어 그룹 생성 시 1회 PATCH하며,
-# 프로세스 인자(ps)에 토큰이 노출되지 않도록 환경변수 + curl -K -(stdin) 방식으로 전달합니다.
+# 2. 외부 도메인 멤버 허용 및 그룹 보안 하드닝 (Groups Settings API 1회 PATCH)
+# - allowExternalMembers: "true" (@main-domain.com 멤버 편입 허용)
+# - whoCanJoin: "INVITED_CAN_JOIN" (외부인 임의 가입/가입 요청 차단)
+# - whoCanViewMembership: "ALL_MANAGERS_CAN_VIEW" (일반 멤버의 전체 회원 명단 조회 차단)
+# - 병렬 실행 시 임시 파일 충돌이 없도록 메모리 변수로 응답을 받아 실패 시에만 에러 본문을 stderr로 출력합니다.
 resource "terraform_data" "enable_external_members" {
   triggers_replace = [google_cloud_identity_group.this.id]
 
@@ -27,12 +29,13 @@ resource "terraform_data" "enable_external_members" {
       GROUP_EMAIL = google_cloud_identity_group.this.group_key[0].id
     }
     command = <<-EOT
-      printf 'header = "Authorization: Bearer %s"\n' "$SA_TOKEN" \
-        | curl -sS --fail-with-body --retry 5 --retry-delay 4 --retry-all-errors -K - \
+      resp=$(printf 'header = "Authorization: Bearer %s"\n' "$SA_TOKEN" \
+        | curl -sS --fail-with-body --retry 8 --retry-delay 10 --retry-all-errors -K - \
             -X PATCH \
             -H "Content-Type: application/json" \
-            -d '{"allowExternalMembers": "true"}' \
-            "https://www.googleapis.com/groups/v1/groups/$GROUP_EMAIL?alt=json" >/dev/null
+            -d '{"allowExternalMembers":"true","whoCanJoin":"INVITED_CAN_JOIN","whoCanViewMembership":"ALL_MANAGERS_CAN_VIEW"}' \
+            "https://www.googleapis.com/groups/v1/groups/$GROUP_EMAIL?alt=json") \
+        || { printf '%s\n' "$resp" >&2; exit 1; }
     EOT
   }
 }

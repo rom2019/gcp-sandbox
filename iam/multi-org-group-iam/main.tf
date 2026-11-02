@@ -3,12 +3,12 @@ data "google_organization" "target" {
   domain = var.additional_domain
 }
 
-# State 파일에 절대 기록되지 않는 인메모리 단기(300초) Groups Settings API 토큰 발급
+# State 파일에 절대 기록되지 않는 인메모리 단기(900초) Groups Settings API 토큰 발급
 ephemeral "google_service_account_access_token" "groups_settings" {
   provider               = google.caller
   target_service_account = var.tf_service_account_email
   scopes                 = ["https://www.googleapis.com/auth/apps.groups.settings"]
-  lifetime               = "300s"
+  lifetime               = "900s"
 }
 
 # ==============================================================================
@@ -17,6 +17,7 @@ ephemeral "google_service_account_access_token" "groups_settings" {
 module "gcp_users" {
   source            = "./modules/external-group"
   customer_id       = data.google_organization.target.directory_customer_id
+  additional_domain = var.additional_domain
   group_email       = "gcp-users@${var.additional_domain}"
   display_name      = "GCP All Users"
   description       = "Grants Browser role so additional-domain.com appears in GCP Organization Switcher"
@@ -32,22 +33,24 @@ resource "google_organization_iam_member" "gcp_users_browser" {
 }
 
 # ==============================================================================
-# 2. 플랫폼/조직 관리자 그룹 (Org Root: Org Admin / Folder Admin / Project Creator)
+# 2. 플랫폼/조직 관리자 그룹 (Org Root: Folder Admin / Project Creator)
 # ==============================================================================
 module "gcp_org_admins" {
   source            = "./modules/external-group"
   customer_id       = data.google_organization.target.directory_customer_id
+  additional_domain = var.additional_domain
   group_email       = "gcp-org-admins@${var.additional_domain}"
   display_name      = "GCP Organization Admins"
-  description       = "Platform and Organization Administrators for additional-domain.com"
+  description       = "Platform Administrators for folder hierarchy and project creation"
   main_login_domain = var.main_login_domain
   sa_access_token   = ephemeral.google_service_account_access_token.groups_settings.access_token
   members           = var.gcp_org_admins_members
 }
 
+# Tier-0 분리: 조직 루트 IAM 및 루트 직하 Seed 프로젝트(tf-iam-admin SA) 변조를 막기 위해
+# organizationAdmin은 제외하고 하위 폴더 관리 및 프로젝트 생성 권한만 부여합니다.
 resource "google_organization_iam_member" "gcp_org_admins" {
   for_each = toset([
-    "roles/resourcemanager.organizationAdmin",
     "roles/resourcemanager.folderAdmin",
     "roles/resourcemanager.projectCreator",
   ])
@@ -63,12 +66,13 @@ resource "google_organization_iam_member" "gcp_org_admins" {
 resource "google_folder" "app_dev" {
   display_name        = "app-dev"
   parent              = data.google_organization.target.name
-  deletion_protection = false
+  deletion_protection = false # 실습 정리(destroy) 편의를 위해 false 설정 (프로덕션 운영 시 true 권장)
 }
 
 module "gcp_app_devs" {
   source            = "./modules/external-group"
   customer_id       = data.google_organization.target.directory_customer_id
+  additional_domain = var.additional_domain
   group_email       = "gcp-app-devs@${var.additional_domain}"
   display_name      = "GCP App Developers (Dev)"
   description       = "Application developers scoped to the app-dev folder"
@@ -94,6 +98,7 @@ resource "google_folder_iam_member" "gcp_app_devs" {
 module "gcp_prj_admins" {
   source            = "./modules/external-group"
   customer_id       = data.google_organization.target.directory_customer_id
+  additional_domain = var.additional_domain
   group_email       = "gcp-prj-admins@${var.additional_domain}"
   display_name      = "GCP Project Admins"
   description       = "Project administrators scoped strictly to designated workload projects"
@@ -102,7 +107,9 @@ module "gcp_prj_admins" {
   members           = var.gcp_prj_admins_members
 }
 
-# 과도한 원시 역할(roles/owner) 대신 GCP 권장 조합(Editor + Project IAM Admin)을 지정된 프로젝트들에만 바인딩
+# 원시 역할(roles/owner) 직접 바인딩을 지양하고, 권한 범위(Blast Radius)를 지정된 프로젝트 내부로만 한정합니다.
+# 참고: projectIamAdmin은 해당 프로젝트 내에서 Owner와 동등한 역할 위임이 가능하므로,
+# 부여 가능한 역할을 제한하려면 IAM Condition(iam.googleapis.com/modifiedGrantsByRole)을 추가하세요.
 resource "google_project_iam_member" "gcp_prj_admins_editor" {
   for_each = var.gcp_prj_admins_project_ids
 

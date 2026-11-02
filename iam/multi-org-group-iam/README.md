@@ -14,10 +14,10 @@
 - **수동 UI 운영 및 DRS 제약**: `@main-domain.com`은 신규 조직 기준 외부 도메인 계정이므로 콘솔 `IAM & Admin > Groups` UI에서 직접 그룹을 생성·편집할 수 없으며, 신규 조직의 DRS(Domain Restricted Sharing) 정책은 기본적으로 자기 도메인(`C02xxxxxx`) 주체만 허용합니다.
 
 > [!IMPORTANT]
-> **핵심 아키텍처 (Keyless SA Impersonation + DRS 무변경 격리)**
-> 1. **100% 신규 조직 그룹 단위 IAM 바인딩**: 부트스트랩 SA 가장 권한(`Token Creator`)부터 조직·폴더 권한까지 모든 GCP IAM 주체를 **`group:gcp-*@additional-domain.com`** 으로 통일하고, **그룹 내부 멤버(`MEMBER`)** 만 `*@main-domain.com`으로 등록합니다.
+> **핵심 아키텍처 (Keyless SA Impersonation + DRS 무변경 격리 + Tier-0 분리)**
+> 1. **100% 신규 조직 그룹 단위 IAM 바인딩**: 부트스트랩 SA 가장 권한(`Token Creator`)부터 조직·폴더·프로젝트 권한까지 모든 GCP IAM 주체를 **`group:gcp-*@additional-domain.com`** 으로 통일하고, **그룹 내부 멤버(`MEMBER`)** 만 `*@main-domain.com`으로 등록합니다.
 > 2. **DRS 기본 격리 100% 유지**: IAM 바인딩 주체가 모두 `additional-domain.com`(`C02xxxxxx`) 소속 그룹이므로 신규 조직 DRS에 `main-domain.com`(`C01xxxxxx`)을 열 필요가 없으며, `@main-domain.com` 개인 계정 직접 바인딩 실수는 DRS가 서버 측에서 원천 차단합니다.
-> 3. **State 미저장 Ephemeral 단기 토큰 & Keyless 운영**: `superadmin@additional-domain.com`은 최초 부트스트랩(Step 1~2) 1회 후 봉인하고, 일상 운영은 SA JSON 키 없이 Terraform `ephemeral "google_service_account_access_token"`(메모리 전용 단기 토큰)과 Impersonation으로만 수행합니다.
+> 3. **Tier-0 경로 격리 & Ephemeral 단기 토큰**: 조직 루트 IAM 및 루트 직하 Seed 프로젝트(`tf-iam-admin` SA) 변경 권한(`organizationAdmin`)은 오직 Terraform 실행 주체(`gcp-tf-operators@`)만 보유하며, 일반 플랫폼 관리자(`gcp-org-admins@`)에게는 부여하지 않아 Tier-0 우회를 차단합니다.
 
 ### 1.2 End-to-End 아키텍처 흐름
 
@@ -25,24 +25,24 @@
 flowchart LR
     subgraph Zone1["Zone 1: 메인 로그인 도메인 (main-domain.com)"]
         User["일반 임직원 (SSO 로그인)\nuser@main-domain.com"]
-        Admin["플랫폼 관리자 / CI 파이프라인\ncloud-admin@main-domain.com"]
+        Admin["IaC 운영자 / CI 파이프라인\ncloud-admin@main-domain.com"]
     end
 
-    subgraph Zone2["Zone 2: 신규 조직 부트스트랩 제어부 (additional-domain.com)"]
-        OpGroup["부트스트랩 그룹\ngcp-tf-operators@additional-domain.com"]
-        SA["Keyless Terraform SA\ntf-iam-admin (Seed 프로젝트)"]
+    subgraph Zone2["Zone 2: 신규 조직 Tier-0 부트스트랩 제어부 (additional-domain.com)"]
+        OpGroup["부트스트랩 그룹 (Tier-0)\ngcp-tf-operators@additional-domain.com"]
+        SA["Keyless Terraform SA\ntf-iam-admin (Org 루트 직하 Seed 프로젝트)"]
         Policy["보안 정책 & Admin 위임\n- DRS: C02xxxxxx 단독 격리 유지\n- Admin Console: SA에 Groups Admin 할당"]
     end
 
     subgraph Zone3["Zone 3: 그룹 및 GCP 리소스 계층 (additional-domain.com)"]
-        CIG["Cloud Identity 그룹\ngcp-*@additional-domain.com\n(allowExternalMembers = true)"]
-        OrgIAM["GCP 계층별 최소 권한 IAM\n- Org Root: Browser / Org Admin\n- Folder: 팀별 최소 권한 격리\n- Project: 지정 프로젝트 전담 Admin"]
+        CIG["Cloud Identity 그룹\ngcp-*@additional-domain.com\n(외부 멤버 허용 + 가입·명단 조회 잠금)"]
+        OrgIAM["GCP 계층별 권한 분리 IAM\n- Org Root: Browser / FolderAdmin+ProjectCreator\n- Folder: 팀별 최소 권한 격리\n- Project: 지정 프로젝트 한정 Admin"]
     end
 
     Admin -->|"소속 멤버"| OpGroup
     OpGroup -->|"1. Token Creator 그룹 위임\n(1-hop SA Impersonation)"| SA
     Policy -.->|"C02 전용 DRS & 권한 제어"| SA
-    SA -->|"2. 그룹 생성 & Ephemeral 토큰 기반\n외부 멤버 허용 PATCH"| CIG
+    SA -->|"2. 그룹 생성 & Ephemeral 토큰 기반\nGroups Settings 하드닝 PATCH"| CIG
     SA -->|"3. @main-domain.com 멤버(MEMBER) 등록"| CIG
     SA -->|"4. 100% 그룹 단위 IAM 바인딩"| OrgIAM
     OrgIAM -.->|"5. 콘솔 스위처에 2개 조직 동시 노출"| User
@@ -70,7 +70,7 @@ multi-org-group-iam/
 ├── outputs.tf                       # 명시적 타입(type) 계약이 적용된 조직 메타데이터, 그룹 이메일, 폴더 ID 출력
 ├── terraform.tfvars.example         # main-domain.com / additional-domain.com 기준 평면(Flat) 변수 템플릿
 └── modules/
-    └── external-group/              # 그룹 생성(SA 단독 Owner) + 외부 멤버 허용 PATCH + @main-domain 검증 캡슐화 서브모듈
+    └── external-group/              # 그룹 생성(SA 단독 Owner) + Groups Settings 하드닝 PATCH + 도메인 검증 서브모듈
         ├── versions.tf
         ├── variables.tf
         ├── main.tf
@@ -79,11 +79,11 @@ multi-org-group-iam/
 
 | 권장 그룹 (`@additional-domain.com`) | 생성 방식 | 바인딩 범위 | 핵심 GCP IAM 역할 | 소속 멤버 (`@main-domain.com`) 및 목적 |
 | :--- | :--- | :--- | :--- | :--- |
-| **`gcp-tf-operators@`** | Step 1~2 (1회) | `tf-iam-admin` SA | `roles/iam.serviceAccountTokenCreator` | IaC 실행 관리자 — DRS에 `C01`을 열지 않고 Keyless SA Impersonation 수행 |
-| **`gcp-users@`** *(필수)* | Terraform | Org Root | `roles/browser` | 신규 조직 접근 전 임직원 — **콘솔 조직 스위처에 두 조직 동시 표시** 및 트리 탐색 |
-| **`gcp-org-admins@`** | Terraform | Org Root | `roles/resourcemanager.organizationAdmin`<br>`roles/resourcemanager.folderAdmin`<br>`roles/resourcemanager.projectCreator` | 클라우드 플랫폼 관리팀 — 폴더 계층 구조, 프로젝트 생성 및 조직 IAM 총괄 |
+| **`gcp-tf-operators@`** *(Tier-0)* | Step 1~2 (1회) | `tf-iam-admin` SA | `roles/iam.serviceAccountTokenCreator` | IaC 실행 관리자 — Keyless SA Impersonation을 통해 조직 루트 IAM 및 그룹 형상 독점 관리 |
+| **`gcp-users@`** *(필수)* | Terraform | Org Root | `roles/browser` | 신규 조직 접근 전 임직원 — **콘솔 조직 스위처에 두 조직 동시 표시** 및 계층 탐색 |
+| **`gcp-org-admins@`** | Terraform | Org Root | `roles/resourcemanager.folderAdmin`<br>`roles/resourcemanager.projectCreator` | 클라우드 플랫폼 관리팀 — 하위 폴더 계층 및 프로젝트 생성 관리 (*Seed 프로젝트·Tier-0 SA 우회 차단을 위해 `organizationAdmin` 제외*) |
 | **`gcp-app-devs@`** | Terraform | `app-dev` Folder | `roles/resourcemanager.folderViewer`<br>`roles/viewer` | 서비스 개발팀 — 담당 폴더 및 하위 프로젝트 리소스만 최소 권한 조회 격리 |
-| **`gcp-prj-admins@`** | Terraform | 지정 Projects (`gcp_prj_admins_project_ids`) | `roles/editor`<br>`roles/resourcemanager.projectIamAdmin` | 특정 프로젝트 전담 관리자 — 원시 역할(`roles/owner`) 대신 지정된 워크로드 프로젝트들에만 리소스·IAM 관리 권한 부여 |
+| **`gcp-prj-admins@`** | Terraform | 지정 Projects (`gcp_prj_admins_project_ids`) | `roles/editor`<br>`roles/resourcemanager.projectIamAdmin` | 특정 프로젝트 전담 관리자 — `Owner`와 동등한 관리 권한을 가지되, **권한 범위를 지정된 프로젝트 내부로만 한정** (*원시 역할 직접 바인딩 회피*) |
 
 > [!TIP]
 > 타 팀 프로젝트 목록 노출까지 차단하고 **상단 Organization Switcher 노출만** 허용하려면 [`main.tf`](./main.tf)의 `gcp_users_browser` 리소스 `role`을 `"roles/resourcemanager.organizationViewer"`로 변경하세요.
@@ -104,7 +104,7 @@ multi-org-group-iam/
 ### Step 1. 초기 부트스트랩 (1/2) — Seed 프로젝트, Keyless SA 및 운영자 그룹 생성
 
 > [!NOTE]
-> Step 1~2는 신규 조직 구축 시 비상용 최고 관리자(**`superadmin@additional-domain.com`**)로 **최초 1회만 수행 후 봉인**합니다.
+> Step 1~2는 신규 조직 구축 시 비상용 최고 관리자(**`superadmin@additional-domain.com`**)로 **최초 1회만 수행 후 봉인**합니다. Seed 프로젝트는 `gcp-org-admins`(`folderAdmin`)의 권한 상속을 받지 않도록 반드시 **조직 루트 직하(`--organization`)** 에 생성합니다.
 
 ```bash
 # 1. 비상용 Super Admin 로그인 및 식별자 확인
@@ -119,7 +119,7 @@ export ADDITIONAL_CUSTOMER_ID="C02xxxxxx"
 export BILLING_ID="01XXXX-XXXXXX-XXXXXX"
 export SEED_PROJECT_ID="iam-seed-prod-01"
 
-# 3. Seed 프로젝트 생성, 빌링 연결 및 필수 API 6종 활성화
+# 3. 조직 루트 직하에 Seed 프로젝트 생성, 빌링 연결 및 필수 API 5종 활성화
 gcloud projects create "${SEED_PROJECT_ID}" --organization="${ADDITIONAL_ORG_ID}"
 gcloud billing projects link "${SEED_PROJECT_ID}" --billing-account="${BILLING_ID}"
 gcloud config set project "${SEED_PROJECT_ID}"
@@ -128,12 +128,11 @@ gcloud services enable \
   cloudidentity.googleapis.com \
   groupssettings.googleapis.com \
   cloudresourcemanager.googleapis.com \
-  orgpolicy.googleapis.com \
   iam.googleapis.com \
   iamcredentials.googleapis.com \
   --project="${SEED_PROJECT_ID}"
 
-# 4. Keyless Terraform Service Account 생성 (JSON 키 발급 없음) 및 최소 권한 부여
+# 4. Keyless Terraform Service Account 생성 (JSON 키 발급 없음) 및 권한 부여
 gcloud iam service-accounts create tf-iam-admin \
   --display-name="Terraform Group and IAM Automation SA" \
   --project="${SEED_PROJECT_ID}"
@@ -162,6 +161,9 @@ gcloud identity groups create "${TF_OPERATOR_GROUP}" \
   --description="Bootstrap group allowed to impersonate tf-iam-admin Service Account" \
   --billing-project="${SEED_PROJECT_ID}"
 
+# 신규 그룹 생성 직후 IAM 백엔드 전파 대기 ("Group not found" 방지)
+sleep 20
+
 gcloud iam service-accounts add-iam-policy-binding "${TF_SA_EMAIL}" \
   --member="group:${TF_OPERATOR_GROUP}" \
   --role="roles/iam.serviceAccountTokenCreator" \
@@ -172,7 +174,7 @@ gcloud iam service-accounts add-iam-policy-binding "${TF_SA_EMAIL}" \
 
 ### Step 2. 초기 부트스트랩 (2/2) — Google Admin Console 1회 설정
 
-`superadmin@additional-domain.com`으로 **`https://admin.google.com`** 에 접속하여 아래 3가지를 설정한 뒤 로그아웃합니다.
+`superadmin@additional-domain.com`으로 **`https://admin.google.com`** 에 접속하여 아래 3가지 항목을 설정합니다.
 
 1. **Terraform SA에 `Groups Admin` 할당 (Domain-Wide Delegation 불필요)**:
    - **Account > Admin roles > Groups Admin > Admins > Assign service accounts** 클릭 → `tf-iam-admin@iam-seed-prod-01.iam.gserviceaccount.com` 등록
@@ -182,7 +184,8 @@ gcloud iam service-accounts add-iam-policy-binding "${TF_SA_EMAIL}" \
    - **Directory > Groups > `gcp-tf-operators@additional-domain.com`** 선택
    - **Access settings** → **`Allow external members`** **ON** 저장
    - **Members > Add members** → `cloud-admin@main-domain.com`을 **`Member`** 역할로 추가 (*`Owner`/`Manager` 부여 금지*)
-4. **1~5분 IAM 전파 대기** 후 `superadmin@additional-domain.com` 세션에서 완전히 로그아웃합니다.
+
+설정을 마친 뒤 **1~5분간 IAM 전파를 대기**하고 `superadmin@additional-domain.com` 세션에서 완전히 로그아웃합니다.
 
 ---
 
@@ -219,11 +222,11 @@ sequenceDiagram
     participant RM as GCP Resource Manager IAM
 
     Admin->>TF: terraform apply
-    TF->>TF: 1. 서브모듈 입력 검증 (@main-domain.com 계정 및 Project ID 형식 확인)
+    TF->>TF: 1. 서브모듈 입력 검증 (그룹 @additional-domain, 멤버 @main-domain, Project ID 확인)
     TF->>RM: 2. data.google_organization 조회 -> org_id & C02xxxxxx 자동 해석
-    TF->>IAMC: 3. ephemeral.google_service_account_access_token (300s 메모리 토큰, State 미저장)
+    TF->>IAMC: 3. ephemeral.google_service_account_access_token (900s 메모리 토큰, State 미저장)
     TF->>CI: 4. modules/external-group -> gcp-*@additional-domain.com 그룹 생성 (SA 단독 Owner)
-    TF->>GS: 5. PATCH allowExternalMembers="true" (curl 내장 재시도) & Org/Folder/Project IAM 병렬 바인딩
+    TF->>GS: 5. PATCH 외부 멤버 허용 + 가입·명단 조회 잠금 (재시도 포함) & Org/Folder/Project IAM 병렬 바인딩
     TF->>CI: 6. @main-domain.com 임직원 멤버십(MEMBER) 등록
 ```
 
@@ -232,39 +235,39 @@ sequenceDiagram
 ### Step 4. 배포 후 검증 체크리스트
 
 1. **콘솔 2개 조직 동시 노출**: `user@main-domain.com` 브라우저에서 상단 Organization 드롭다운을 열면 `main-domain.com`과 `additional-domain.com`이 나란히 노출되어 재로그인 없이 즉시 전환됩니다 *(초기 반영까지 1~5분 소요 가능)*.
-2. **폴더·프로젝트 최소 권한 및 SA 단독 Owner 확인**:
+2. **계층별 권한 분리 및 SA 단독 Owner 확인**:
    - `additional-domain.com` > `app-dev` 폴더 및 `gcp_prj_admins_project_ids`에 지정한 프로젝트 IAM에 개인 계정(`user:`) 없이 `group:gcp-*@additional-domain.com`만 바인딩되어 있는지 확인합니다.
-   - 그룹 내 모든 인간 사용자는 `MEMBER`로만 등록되며, 콘솔 UI에서 수동 그룹 생성·편집이 차단되는지 확인합니다.
+   - 그룹 내 모든 인간 사용자는 `MEMBER`로만 등록되며, 콘솔 UI에서 수동 그룹 생성·편집 및 조직 루트/Seed 프로젝트 IAM 수동 변경이 차단되는지 확인합니다.
 3. **비인가 외부 도메인(`@gmail.com`) 즉시 차단 테스트**:
    - `terraform.tfvars`의 아무 그룹 멤버 변수(예: `gcp_users_members`)에 `"unauthorized-user@gmail.com"`을 임시로 넣고 `terraform plan`을 실행하면, 서브모듈 검증 규칙에 의해 차단됩니다 (확인 후 원복).
 
 ```text
 Error: Invalid value for variable
 
-  on main.tf line 25, in module "gcp_users":
-  25:   members           = var.gcp_users_members
+  on main.tf line 26, in module "gcp_users":
+  26:   members           = var.gcp_users_members
 
 보안 정책 위반: 모든 그룹 멤버는 허용된 메인 로그인 도메인(@main-domain.com) 계정이어야 합니다.
 
 This was checked by the validation rule at
-modules/external-group/variables.tf:37,3-13.
+modules/external-group/variables.tf:45,3-13.
 ```
 
 ---
 
 ## 4. 운영 보안 가드레일 및 프로덕션 전환 가이드
 
-1. **Tier-0 특권 그룹 감사 알림 및 Out-of-Band 방어**:
-   - [`modules/external-group/variables.tf`](./modules/external-group/variables.tf) 검증은 모든 그룹 모듈 호출에서 비인가 도메인을 자동 차단하며, 인간에게 `MANAGER`를 부여하지 않아 `groups.google.com` 우회 초대를 막습니다.
-   - 최상위 권한 경로인 **`gcp-tf-operators@`** 와 **`gcp-org-admins@`** 의 멤버십 변경 및 `tf-iam-admin` SA IAM 변경에 대해 Google Workspace Admin 감사 로그 및 Cloud Audit Logs 실시간 알림을 반드시 설정하세요.
-   - `allowExternalMembers`는 프로바이더 네이티브 리소스 부재로 최초 생성 시 1회 `PATCH`되므로 Admin Console에서 수동 변경하지 않도록 주의하세요.
-2. **원격 GCS State 백엔드 & CI/CD Direct WIF 전환**:
+1. **Tier-0(`gcp-tf-operators@`) 경계 보호 및 그룹 설정 하드닝**:
+   - **Tier-0 우회 차단**: `roles/resourcemanager.organizationAdmin`을 인간 그룹(`gcp-org-admins`)에 부여하면 조직 루트 직하 Seed 프로젝트의 IAM을 수정해 `tf-iam-admin` SA(`Groups Admin`)를 탈취할 수 있습니다. 따라서 조직 루트 IAM 변경 권한은 오직 `tf-iam-admin` SA만 보유하며, Seed 프로젝트는 반드시 `gcp-org-admins`가 관리하는 하위 폴더 밖(조직 루트 직하)에 유지하세요 *(별도 관리 폴더로 이동할 경우 IAM Deny 정책으로 `iam.serviceAccounts.setIamPolicy` 및 `resourcemanager.projects.setIamPolicy`를 차단해야 합니다)*.
+   - **Groups Settings 3중 잠금**: [`modules/external-group/main.tf`](./modules/external-group/main.tf)는 최초 생성 시 `allowExternalMembers: "true"`와 함께 `whoCanJoin: "INVITED_CAN_JOIN"`(외부 자가 가입 차단), `whoCanViewMembership: "ALL_MANAGERS_CAN_VIEW"`(일반 멤버 간 전체 명단 조회 차단)를 동시에 고정합니다. 프로바이더 네이티브 리소스 부재로 최초 1회 `PATCH`되므로 Admin Console에서 수동 변경하지 마세요.
+   - **감사 로그 알림**: **`gcp-tf-operators@`** 멤버십 변경 및 `tf-iam-admin` SA IAM 변경에 대해 Google Workspace Admin 감사 로그 및 Cloud Audit Logs 실시간 알림을 설정하세요.
+2. **원격 GCS State 백엔드, 폴더 삭제 보호 & CI/CD Direct WIF 전환**:
    - Seed 프로젝트 내 버전 관리가 활성화된 GCS 버킷을 생성하고 [`versions.tf`](./versions.tf)의 `backend "gcs"` 주석을 해제합니다.
-   - 프로덕션에서는 GitHub Actions / Cloud Build의 **Direct WIF** 주체(`principalSet://...`)에 `tf-iam-admin` SA의 `roles/iam.serviceAccountTokenCreator`를 부여하세요. [`versions.tf`](./versions.tf)의 기본 프로바이더와 `google.caller` 별칭 프로바이더 모두 **1-hop Impersonation** 구조로 동작하며 `gcloud` CLI 없이도 CI 컨테이너에서 바로 실행됩니다 *(만약 CI 인증 스텝 자체에서 이미 SA 가장형 ADC를 생성하는 경우 `tf-iam-admin` SA 자기 자신에게 `Token Creator`를 추가 부여하면 2-hop 호출도 정상 동작합니다)*.
+   - 프로덕션 전환 시 [`main.tf`](./main.tf)의 `google_folder` 리소스에서 **`deletion_protection = true`** 로 변경해 실수로 인한 폴더 삭제를 방지하세요.
+   - GitHub Actions / Cloud Build의 **Direct WIF** 주체(`principalSet://...`)에 `tf-iam-admin` SA의 `roles/iam.serviceAccountTokenCreator`를 부여하면 `gcloud` CLI 없이 1-hop Impersonation으로 동작합니다 *(CI 인증 스텝 자체에서 SA 가장형 ADC를 생성하는 경우 `tf-iam-admin` SA 자기 자신에게 `Token Creator`를 추가 부여하면 2-hop 호출도 정상 동작합니다)*.
 3. **그룹 및 Org / Folder / Project IAM 확장 (로컬 서브모듈 + 정적 Copy & Paste 설계)**:
-   - 반복되는 보안 배선(`SA 단독 Owner` + `allowExternalMembers PATCH` + `depends_on` + `@main-domain 검증`)은 [`modules/external-group`](./modules/external-group)에 캡슐화되어 있고, 루트 [`main.tf`](./main.tf)는 중첩 `locals` 루프 없이 **정적 블록 나열 방식**으로 작성되어 있습니다.
-   - 신규 팀·폴더·프로젝트 그룹이 필요하면 `main.tf`에서 `module "..."` 블록과 `google_organization_iam_member` / `google_folder_iam_member` / `google_project_iam_member` 블록을 그대로 복사·붙여넣기한 뒤 `terraform init && terraform apply`를 실행하세요.
-   - 프로젝트 단위 전담 관리자(`gcp-prj-admins`)는 과도한 권한과 외부 도메인 초대 제약이 따르는 원시 역할(`roles/owner`) 대신 GCP 보안 권장 조합인 **`roles/editor` + `roles/resourcemanager.projectIamAdmin`** 을 사용합니다.
+   - 신규 팀·폴더·프로젝트 그룹이 필요하면 [`main.tf`](./main.tf)에서 `module "..."` 블록과 IAM 리소스 블록을 그대로 복사·붙여넣기한 뒤 `terraform init && terraform apply`를 실행하세요. 그룹 이메일 도메인(`@additional_domain`)과 멤버 도메인(`@main_login_domain`) 모두 서브모듈이 자동 검증합니다.
+   - **프로젝트 전담 Admin(`gcp-prj-admins`) 권한 범위 유의**: `roles/editor` + `roles/resourcemanager.projectIamAdmin` 조합은 원시 역할(`roles/owner`) 직접 바인딩을 피하면서 권한 범위를 지정된 프로젝트 내부로만 가두지만, 해당 프로젝트 내에서는 `Owner`와 동등한 역할 위임이 가능합니다. 만약 프로젝트 관리자가 부여할 수 있는 역할 종류까지 제한해야 한다면 `gcp_prj_admins_iam_admin` 리소스에 `api.getAttribute('iam.googleapis.com/modifiedGrantsByRole', []).hasOnly([...])` IAM Condition을 추가하세요.
 
 ---
 
@@ -308,5 +311,5 @@ gcloud projects delete "${SEED_PROJECT_ID}" --quiet
 | `Error: Organization not found: <domain>` | `additional_domain` 오타 또는 `tf-iam-admin` SA에 조직 조회 권한 미전파 | 도메인명 확인 및 Step 1의 `organizationAdmin` 부여 후 1~2분 뒤 재실행 |
 | `Error generating access token ... 403` (`iam.serviceAccounts.getAccessToken` denied) | 호출 계정이 `gcp-tf-operators@` 그룹 멤버가 아니거나 IAM 전파 지연 | Step 2-3의 외부 멤버 허용 ON 및 `Member` 등록 확인 후 1~5분 대기 |
 | `Error 403 ... USER_PROJECT_DENIED` | `tf-iam-admin` SA에 Seed 프로젝트 쿼터 권한 누락 | Step 1의 Seed 프로젝트 `roles/serviceusage.serviceUsageConsumer` 바인딩 확인 |
-| `Groups Settings API` `PATCH` 시 `HTTP 403` | Admin Console `Groups Admin` 미할당 또는 외부 멤버 허용 옵션 미체크 | Step 2-1, 2-2 설정 확인 후 1~5분 전파 대기 뒤 `terraform apply` 재실행 |
+| `Groups Settings API` `PATCH` 시 `HTTP 403/404` (`Not Authorized...` 본문 출력) | Admin Console `Groups Admin` 미할당, 외부 멤버 옵션 미체크 또는 전파 지연 | Step 2-1, 2-2 설정 확인 후 1~5분 전파 대기 뒤 `terraform apply` 재실행 |
 | 콘솔 드롭다운에 신규 조직이 바로 안 보임 | 그룹 멤버십 → GCP IAM 캐시 전파 지연(1~5분) 또는 `gcp-users` 누락 | 1~5분 대기 후 브라우저 강력 새로고침(`Ctrl+Shift+R` / `Cmd+Shift+R`) |

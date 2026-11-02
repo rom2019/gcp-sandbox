@@ -3,13 +3,21 @@ variable "customer_id" {
   type        = string
 }
 
+variable "additional_domain" {
+  description = "신규 분리 GCP Organization 도메인 (예: additional-domain.com) — 그룹 이메일 도메인 검증용"
+  type        = string
+}
+
 variable "group_email" {
   description = "생성할 Cloud Identity 그룹 이메일 주소 (예: gcp-users@additional-domain.com)"
   type        = string
 
   validation {
-    condition     = can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.group_email))
-    error_message = "유효한 그룹 이메일 주소(<prefix>@<domain>) 형식이어야 합니다."
+    condition = (
+      can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.group_email)) &&
+      endswith(lower(trimspace(var.group_email)), "@${lower(trimspace(var.additional_domain))}")
+    )
+    error_message = "그룹 이메일(${var.group_email})은 반드시 유효한 이메일 형식이며 신규 조직 도메인(@${var.additional_domain}) 소속이어야 합니다."
   }
 }
 
