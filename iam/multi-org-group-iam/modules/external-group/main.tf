@@ -14,11 +14,7 @@ resource "google_cloud_identity_group" "this" {
   }
 }
 
-# 2. 외부 도메인 멤버 허용 및 그룹 보안 하드닝 (Groups Settings API 1회 PATCH)
-# - allowExternalMembers: "true" (@main-domain.com 멤버 편입 허용)
-# - whoCanJoin: "INVITED_CAN_JOIN" (외부인 임의 가입/가입 요청 차단)
-# - whoCanViewMembership: "ALL_MANAGERS_CAN_VIEW" (일반 멤버의 전체 회원 명단 조회 차단)
-# - 병렬 실행 시 임시 파일 충돌이 없도록 메모리 변수로 응답을 받아 실패 시에만 에러 본문을 stderr로 출력합니다.
+# 2. 외부 도메인(@main-domain.com) 멤버 추가 허용 활성화 (Groups Settings API 1회 PATCH)
 resource "terraform_data" "enable_external_members" {
   triggers_replace = [google_cloud_identity_group.this.id]
 
@@ -33,7 +29,7 @@ resource "terraform_data" "enable_external_members" {
         | curl -sS --fail-with-body --retry 8 --retry-delay 10 --retry-all-errors -K - \
             -X PATCH \
             -H "Content-Type: application/json" \
-            -d '{"allowExternalMembers":"true","whoCanJoin":"INVITED_CAN_JOIN","whoCanViewMembership":"ALL_MANAGERS_CAN_VIEW"}' \
+            -d '{"allowExternalMembers": "true"}' \
             "https://www.googleapis.com/groups/v1/groups/$GROUP_EMAIL?alt=json") \
         || { printf '%s\n' "$resp" >&2; exit 1; }
     EOT

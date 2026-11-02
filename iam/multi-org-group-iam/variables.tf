@@ -29,7 +29,7 @@ variable "gcp_users_members" {
 }
 
 variable "gcp_org_admins_members" {
-  description = "조직 플랫폼 관리자 그룹(gcp-org-admins) 멤버 목록 — 폴더 계층 및 프로젝트 생성 담당"
+  description = "조직 플랫폼 관리자 그룹(gcp-org-admins) 멤버 목록"
   type        = set(string)
   default     = []
 }
@@ -47,7 +47,7 @@ variable "gcp_prj_admins_members" {
 }
 
 variable "gcp_prj_admins_project_ids" {
-  description = "gcp-prj-admins 그룹에 프로젝트 최고 관리 권한(Editor + Project IAM Admin)을 부여할 대상 GCP Project ID 목록"
+  description = "gcp-prj-admins 그룹에 Project Admin 권한(Editor + Project IAM Admin)을 부여할 대상 GCP Project ID 목록"
   type        = set(string)
   default     = []
 
