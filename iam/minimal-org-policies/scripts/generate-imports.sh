@@ -4,9 +4,11 @@
 # ------------------------------------------------------------------------------
 # 신규 생성되거나 운영 중인 GCP Organization(또는 기존 Folder)에는 Google의
 # Secure-by-Default 기본 보안 정책들이 이미 생성되어 있는 경우가 많습니다.
-# 그대로 `terraform apply`를 실행하면 `Error 409: Requested entity already exists`가
-# 발생하므로, 본 스크립트가 대상 범위의 기존 정책을 조회하여 현재 활성화된 Terraform
-# 정책 리소스와 매칭되는 `imports.tf` (Terraform 1.5+ 선언적 import 블록)를 자동 생성합니다.
+# 본 스크립트는 대상 범위의 기존 정책(JSON)을 조회하여:
+#   1) 현재 활성화된 Terraform 정책 리소스와 매칭되는 `imports.tf` 블록 자동 생성
+#   2) 이미 GCP에서 ENFORCED(spec 활성) 중인 정책이 DRY_RUN으로 강등될 위험 자동 감지 및 안내
+#   3) .managed. 정책과 중복 평가될 수 있는 레거시 기본 정책 존재 여부 감지 및 안내
+# 를 수행합니다.
 #
 # 사용 예시:
 #   ./scripts/generate-imports.sh --org 123456789012
@@ -82,7 +84,7 @@ if [[ -z "${SCOPE_FLAG}" || -z "${SCOPE_ID}" ]]; then
   exit 1
 fi
 
-GCLOUD_ARGS=("${SCOPE_FLAG}=${SCOPE_ID}" "--format=value(name)")
+GCLOUD_ARGS=("${SCOPE_FLAG}=${SCOPE_ID}" "--format=json")
 if [[ -n "${IMPERSONATE_SA}" ]]; then
   GCLOUD_ARGS+=("--impersonate-service-account=${IMPERSONATE_SA}")
 fi
@@ -90,43 +92,70 @@ if [[ -n "${BILLING_PROJECT}" ]]; then
   GCLOUD_ARGS+=("--billing-project=${BILLING_PROJECT}")
 fi
 
-echo "==> [1/3] ${PARENT_PATH} 에 현재 존재하는 Organization Policy 목록을 조회합니다..."
-EXISTING_POLICIES="$(gcloud org-policies list "${GCLOUD_ARGS[@]}")"
+echo "==> [1/3] ${PARENT_PATH} 에 현재 존재하는 Organization Policy 목록 및 강제 상태를 조회합니다..."
+EXISTING_JSON="$(gcloud org-policies list "${GCLOUD_ARGS[@]}")"
 
-echo "==> [2/3] 현재 Terraform 설정(terraform.tfvars) 기준 관리 대상 정책을 계산합니다..."
-if ! ACTIVE_JSON="$(echo 'jsonencode(local.active_constraint_names)' | terraform -chdir="${ROOT_DIR}" console -lock=false 2>/dev/null)"; then
+echo "==> [2/3] 현재 Terraform 설정(terraform.tfvars) 기준 정책별 유효 모드를 계산합니다..."
+if ! EFFECTIVE_MODES_JSON="$(echo 'jsonencode(local.effective_policy_modes)' | terraform -chdir="${ROOT_DIR}" console -lock=false 2>/dev/null)"; then
   echo "[ERROR] 'terraform console' 실행에 실패했습니다. 먼저 '${ROOT_DIR}'에서 'terraform init' 및 'terraform.tfvars' 설정을 확인하세요." >&2
   exit 1
 fi
 
-ALL_CATALOG_JSON="$(echo 'jsonencode(keys(local.policy_tier_metadata))' | terraform -chdir="${ROOT_DIR}" console -lock=false 2>/dev/null)"
-
 echo "==> [3/3] ${OUTPUT_FILE} 파일을 생성합니다..."
-python3 - "${EXISTING_POLICIES}" "${ACTIVE_JSON}" "${ALL_CATALOG_JSON}" "${PARENT_PATH}" "${OUTPUT_FILE}" <<'PYEOF'
+python3 - "${EXISTING_JSON}" "${EFFECTIVE_MODES_JSON}" "${PARENT_PATH}" "${OUTPUT_FILE}" <<'PYEOF'
 import json
 import sys
 
-existing_raw, active_raw, catalog_raw, parent_path, output_file = sys.argv[1:6]
+existing_raw, modes_raw, parent_path, output_file = sys.argv[1:5]
 
-def parse_tf_console_json(raw: str) -> set[str]:
+def parse_tf_console_json(raw: str) -> dict[str, str]:
     cleaned = raw.strip()
-    # terraform console outputs a HCL string literal wrapping JSON, so json.loads twice if quoted
     parsed = json.loads(cleaned)
     if isinstance(parsed, str):
         parsed = json.loads(parsed)
-    return set(parsed)
+    return parsed
 
-active_set = parse_tf_console_json(active_raw)
-catalog_set = parse_tf_console_json(catalog_raw)
+def is_live_spec_enforced(policy_obj: dict) -> bool:
+    spec = policy_obj.get("spec") or {}
+    if spec.get("reset") is True:
+        return False
+    rules = spec.get("rules") or []
+    if not rules:
+        return False
+    for r in rules:
+        if "condition" in r:
+            continue
+        if r.get("enforce") is True:
+            return True
+        if r.get("denyAll") is True:
+            return True
+        if "values" in r or "parameters" in r:
+            if r.get("enforce") is not False and r.get("allowAll") is not True:
+                return True
+    return False
 
-existing_constraints = sorted({
-    line.strip().split("/policies/", 1)[1]
-    for line in existing_raw.splitlines()
-    if "/policies/" in line.strip()
-})
+effective_modes = parse_tf_console_json(modes_raw)
+existing_list = json.loads(existing_raw) if existing_raw.strip() else []
+
+existing_by_constraint: dict[str, dict] = {}
+for item in existing_list:
+    name = item.get("name", "")
+    if "/policies/" in name:
+        constraint = name.split("/policies/", 1)[1]
+        existing_by_constraint[constraint] = item
+
+existing_constraints = sorted(existing_by_constraint.keys())
+active_set = {c for c, m in effective_modes.items() if m != "UNMANAGED"}
+catalog_set = set(effective_modes.keys())
 
 to_import = [c for c in existing_constraints if c in active_set]
 unmanaged_existing = [c for c in existing_constraints if c in catalog_set and c not in active_set]
+
+# 이미 GCP에서 실제 강제(spec) 중인데 현재 Terraform 모드가 DRY_RUN이어서 강제가 해제될 수 있는 정책 감지
+downgraded_from_enforced = [
+    c for c in to_import
+    if effective_modes.get(c) == "DRY_RUN" and is_live_spec_enforced(existing_by_constraint[c])
+]
 
 legacy_counterparts = {
     "iam.allowedPolicyMemberDomains": "iam.managed.allowedPolicyMembers",
@@ -135,6 +164,9 @@ legacy_counterparts = {
     "compute.disableSerialPortAccess": "compute.managed.disableSerialPortAccess",
     "compute.disableNestedVirtualization": "compute.managed.disableNestedVirtualization",
     "compute.requireOsLogin": "compute.managed.requireOsLogin",
+    "compute.trustedImageProjects": "compute.managed.trustedImageProjects",
+    "compute.restrictProtocolForwardingCreationForTypes": "compute.managed.restrictProtocolForwardingCreationForTypes",
+    "compute.vmExternalIpAccess": "compute.managed.vmExternalIpAccess",
     "sql.restrictPublicIp": "sql.managed.restrictPublicIp",
     "sql.restrictAuthorizedNetworks": "sql.managed.restrictAuthorizedNetworks",
 }
@@ -165,11 +197,25 @@ with open(output_file, "w", encoding="utf-8") as f:
 
 print(f"\n[완료] 총 {len(to_import)}개의 기존 정책에 대한 import 블록을 '{output_file}'에 생성했습니다.")
 for c in to_import:
-    print(f"  + import: {parent_path}/policies/{c}")
+    print(f"  + import: {parent_path}/policies/{c} (Terraform 모드: {effective_modes[c]})")
+
+if downgraded_from_enforced:
+    print("\n================================================================================")
+    print("[보안 경고] 이미 GCP에서 ENFORCED(강제) 중인 정책이 DRY_RUN 모드로 전환될 예정입니다!")
+    print("2024년 5월 이후 생성된 신규 Org의 Secure-by-Default 정책 등이 여기에 해당합니다.")
+    print("그대로 apply 하면 기존 강제(spec)가 해제되고 감사 전용(dry_run_spec)으로 완화됩니다.")
+    print("기존 강제를 유지하면서 태그 예외 규칙만 추가하려면 terraform.tfvars에 아래 설정을 추가하세요:")
+    print("")
+    print("policy_mode_overrides = {")
+    for c in downgraded_from_enforced:
+        print(f'  "{c}" = "ENFORCED"')
+    print("}")
+    print("================================================================================")
 
 if unmanaged_existing:
     print("\n[참고] 아래 정책은 현재 GCP에 이미 설정되어 있으나 Terraform 설정에서는 'UNMANAGED' 상태입니다.")
-    print("       Terraform으로 함께 관리하려면 policy_mode_overrides에 추가한 뒤 본 스크립트를 다시 실행하세요:")
+    print("       Terraform은 해당 정책을 건드리지 않고 현재 GCP 상태를 그대로 유지합니다.")
+    print("       코드로 함께 관리하려면 policy_mode_overrides에 추가한 뒤 본 스크립트를 다시 실행하세요:")
     for c in unmanaged_existing:
         print(f"  - {c}")
 

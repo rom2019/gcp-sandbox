@@ -20,7 +20,7 @@ locals {
     }
     public_storage = {
       short_name  = "${var.tag_key_prefix}-public-storage"
-      description = "공개 정적 에셋 버킷 등을 위해 Cloud Storage Public Access Prevention / UBLA 예외 허용"
+      description = "공개 정적 에셋 운영 프로젝트에 Cloud Storage Public Access Prevention / UBLA 예외 허용 (프로젝트/폴더 단위 바인딩 전용)"
     }
     external_ip = {
       short_name  = "${var.tag_key_prefix}-external-ip"
@@ -93,7 +93,7 @@ resource "google_tags_tag_binding" "project_exemption" {
   tag_value = google_tags_tag_value.exempt_true[each.value.exemption].id
 }
 
-# 선언적 리전 리소스(개별 GCS 버킷, Cloud Run 서비스 등) 단위 정밀 예외 태그 바인딩
+# 선언적 리전/존 서비스 리소스(Cloud Run 서비스, Compute VM 등 — .managed. 제약조건 전용) 정밀 예외 태그 바인딩
 resource "google_tags_location_tag_binding" "resource_exemption" {
   for_each = local.flattened_regional_exemptions
 

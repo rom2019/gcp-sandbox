@@ -74,7 +74,7 @@ variable "baseline_policy_mode" {
 
 variable "audit_first_policy_mode" {
   description = <<-EOT
-    [Audit-First Managed Policies — 6종] 네이티브 dry_run_spec을 지원하는 Google-Managed(.managed.) 정책 티어의 기본 모드:
+    [Audit-First Managed Policies — 7종] 네이티브 dry_run_spec을 지원하는 Google-Managed(.managed.) 정책 티어의 기본 모드:
     - "DRY_RUN"   : (권장 기본값) 리소스 차단 없이 Cloud Audit Logs에 위반 내역만 기록
     - "ENFORCED"  : 감사 완료 및 예외 태그 부착 후 전체 강제 차단 전환
     - "UNMANAGED" : 미적용
@@ -90,7 +90,7 @@ variable "audit_first_policy_mode" {
 
 variable "opt_in_policy_mode" {
   description = <<-EOT
-    [Opt-In Workload Controls — 8종] API상 dry_run_spec 미지원으로 사전 자산 점검 및 예외 태그 부착이 필요한 스토리지·네트워크 정책 티어의 기본 모드:
+    [Opt-In Workload Controls — 7종] API상 dry_run_spec 미지원으로 사전 자산 점검 및 프로젝트 단위 예외 태그 부착이 필요한 레거시 스토리지·서버리스 정책 티어의 기본 모드:
     - "UNMANAGED" : (권장 기본값) 초기에는 미적용 상태로 두고 준비된 정책부터 policy_mode_overrides로 순차 활성화
     - "ENFORCED"  : 예외 태그 선부착 완료 후 전체 강제 적용
   EOT
@@ -145,10 +145,10 @@ variable "policy_mode_overrides" {
         "compute.managed.requireOsLogin",
         "compute.managed.trustedImageProjects",
         "compute.managed.restrictProtocolForwardingCreationForTypes",
+        "compute.managed.vmExternalIpAccess",
         "run.managed.requireInvokerIam",
         "storage.publicAccessPrevention",
         "storage.uniformBucketLevelAccess",
-        "compute.vmExternalIpAccess",
         "run.allowedIngress",
         "run.allowedVPCEgress",
         "cloudfunctions.allowedIngressSettings",
@@ -208,7 +208,7 @@ variable "allowed_contact_domains" {
 
 variable "trusted_image_projects" {
   description = <<-EOT
-    compute.managed.trustedImageProjects에 허용할 부팅 디스크 이미지 소스 목록.
+    compute.managed.trustedImageProjects (Public Preview)에 허용할 부팅 디스크 이미지 소스 목록.
     주의: Google-Managed 제약조건 규격상 문자열 프로젝트 ID가 아닌 'projects/<PROJECT_NUMBER>', 'folders/<FOLDER_ID>', 'organizations/<ORG_ID>' 숫자 ID 형식이어야 합니다.
     비워두면([]) 해당 정책 리소스를 생성하지 않습니다.
   EOT
@@ -239,6 +239,7 @@ variable "tag_key_prefix" {
 variable "project_tag_exemptions" {
   description = <<-EOT
     프로젝트 단위로 부착할 목적별 예외 태그 선언 맵 (키: 프로젝트 ID, 값: 예외 도메인 키 목록).
+    조직·폴더·프로젝트에 부착된 태그는 모든 제약조건(.managed. 및 레거시 Opt-In 전체)에서 상속 평가됩니다.
     지원 예외 키: "sa_key" | "public_iam" | "public_storage" | "external_ip" | "public_sql" | "os_login" | "trusted_image" | "serverless"
     예시:
       project_tag_exemptions = {
@@ -270,13 +271,15 @@ variable "project_tag_exemptions" {
 
 variable "regional_resource_tag_exemptions" {
   description = <<-EOT
-    프로젝트 전체 대신 개별 리전 리소스(GCS 버킷, Cloud Run 서비스 등)에만 정밀하게 예외 태그를 바인딩하는 목록.
+    프로젝트 전체 대신 개별 리전/존 서비스 리소스(Cloud Run 서비스, Compute Engine VM 등)에 직접 예외 태그를 바인딩하는 목록.
+    [주의] 하위 서비스 리소스에 직접 부착한 태그는 Google-Managed('.managed.') 제약조건(예: run.managed.requireInvokerIam, compute.managed.vmExternalIpAccess)에서만 평가됩니다.
+    storage.publicAccessPrevention, run.allowedIngress 등 레거시(Opt-In) 제약조건은 반드시 project_tag_exemptions(프로젝트 단위)를 사용하세요.
     예시:
       regional_resource_tag_exemptions = [
         {
-          parent    = "//storage.googleapis.com/projects/_/buckets/my-public-static-bucket"
+          parent    = "//run.googleapis.com/projects/my-app-prod/locations/asia-northeast3/services/public-webhook"
           location  = "asia-northeast3"
-          exemption = "public_storage"
+          exemption = "serverless"
         }
       ]
   EOT
