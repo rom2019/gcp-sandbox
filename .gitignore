@@ -4,6 +4,8 @@
 *.tfstate.backup
 *.tfvars          
 backend.tf
+imports.tf
+**/imports.tf
 .terraform.lock.hcl
 
 # 다이어그램 소스
@@ -11,4 +13,5 @@ backend.tf
 
 # macOS
 .DS_Store
+**/._*
 **/.DS_Store

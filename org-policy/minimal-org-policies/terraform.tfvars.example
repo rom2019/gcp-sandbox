@@ -1,0 +1,94 @@
+# ==============================================================================
+# GCP Minimal Organization Policies — Example Configuration
+# ==============================================================================
+# 사용 방법:
+#   cp terraform.tfvars.example terraform.tfvars
+#   (.gitignore에 의해 *.tfvars 및 imports.tf 파일은 Git 커밋에서 자동 제외됩니다.)
+
+# ------------------------------------------------------------------------------
+# 1. 대상 조직 및 적용 범위 (Hands-On 폴더 실습 vs 프로덕션 Org Root 배포)
+# ------------------------------------------------------------------------------
+org_id = "123456789012" # 대상 GCP Organization의 숫자형 ID
+
+# [권장 워크플로우]
+# - Step 1 (Hands-On 실습 / 사전 검증): "folder" 로 설정하면 격리된 실습 폴더에만 정책이 부착되어
+#   기존 워크로드 영향이나 루트 정책 409 충돌 없이 안전하게 차단·감사·예외 태그를 체험할 수 있습니다.
+# - Step 2 (프로덕션 본 배포): 실습 완료 후 "organization" 으로 변경하고
+#   ./scripts/generate-imports.sh --org <ORG_ID> 실행 뒤 apply 하면 조직 루트에 배포됩니다.
+policy_scope                = "folder"             # "folder" (실습/사전검증) | "organization" (조직 루트 본 배포)
+target_folder_id            = ""                   # 기존 폴더에 적용할 때만 숫자 ID 입력 (비워두면 아래 이름으로 폴더 자동 생성)
+handson_folder_display_name = "policy-handson-lab" # policy_scope = "folder" 시 자동 생성할 폴더 이름
+create_env_folders          = false                # 표준 환경 폴더(Prod, Dev, Shared) 생성 여부
+
+# ------------------------------------------------------------------------------
+# 2. 3단계 운영 티어 기본 모드 & 개별 정책 제어 (Granular Overrides)
+# ------------------------------------------------------------------------------
+baseline_policy_mode    = "ENFORCED"  # [Baseline 12종] 기본 보안 가드레일 (즉시 강제)
+audit_first_policy_mode = "DRY_RUN"   # [Audit-First 6종] 네이티브 DRY_RUN으로 감사 로그만 먼저 수집
+opt_in_policy_mode      = "UNMANAGED" # [Opt-In 8종] 자산 스캔 및 태그 부착 후 준비된 정책부터 개별 활성화
+
+# 원하는 개별 정책만 골라 모드를 덮어쓸 수 있습니다 ("ENFORCED" | "DRY_RUN" | "UNMANAGED")
+policy_mode_overrides = {
+  # 예시 1: 감사 완료 후 특정 Audit-First 정책만 먼저 ENFORCED로 승격
+  # "run.managed.requireInvokerIam"                = "ENFORCED"
+  # "iam.managed.disableServiceAccountKeyCreation" = "ENFORCED"
+
+  # 예시 2: 공개 버킷 점검 및 예외 태그 부착을 마친 Opt-In 정책만 개별 활성화
+  # "storage.publicAccessPrevention"   = "ENFORCED"
+  # "storage.uniformBucketLevelAccess" = "ENFORCED"
+
+  # 예시 3: 특정 Baseline 정책을 환경 특성에 따라 제외할 때
+  # "compute.disableVpcExternalIpv6" = "UNMANAGED"
+}
+
+# ------------------------------------------------------------------------------
+# 3. 도메인 제한(DRS), 중요 알림 도메인 및 신뢰 이미지 파라미터
+# ------------------------------------------------------------------------------
+# 보안·장애 중요 알림(Essential Contacts) 수신 허용 도메인 ('@' 시작 필수)
+allowed_contact_domains = [
+  "@example.com",
+]
+
+# 차세대 DRS(iam.managed.allowedPolicyMembers)에 현재 org_id 외 추가 허용할 외부 조직 ID
+# - 단일 조직 격리 운영(또는 multi-org-group-iam 그룹 위임 패턴 사용) 시 빈 리스트([]) 권장
+drs_allowed_org_ids         = []
+drs_allowed_member_subjects = []
+
+# 신뢰 부팅 이미지 소스 목록 (선택: 'projects/<PROJECT_NUMBER>' 또는 'organizations/<ORG_ID>')
+trusted_image_projects = [
+  # "organizations/123456789012",
+  # "projects/136693071363", # debian-cloud 공식 프로젝트 번호 예시
+]
+
+# ------------------------------------------------------------------------------
+# 4. 목적별 독립 예외 태그 및 선언적(Declarative) 태그 바인딩
+# ------------------------------------------------------------------------------
+tag_key_prefix = "exempt" # 공유 테스트 조직에서 기존 태그와 이름 충돌 시 "lab-exempt" 등으로 변경 가능
+
+# 지원되는 8종 예외 키:
+# "sa_key" | "public_iam" | "public_storage" | "external_ip" | "public_sql" | "os_login" | "trusted_image" | "serverless"
+
+# 프로젝트 단위로 예외 태그를 코드로 선언 관리 (수동 gcloud 바인딩 대체)
+project_tag_exemptions = {
+  # "my-public-web-prod"  = ["public_storage", "serverless"]
+  # "legacy-partner-sync" = ["sa_key"]
+}
+
+# 프로젝트 전체 대신 특정 리전 리소스(개별 GCS 버킷, Cloud Run 서비스 등)에만 예외 부여 시 사용
+regional_resource_tag_exemptions = [
+  # {
+  #   parent    = "//storage.googleapis.com/projects/_/buckets/my-public-static-assets"
+  #   location  = "asia-northeast3"
+  #   exemption = "public_storage"
+  # }
+]
+
+# ------------------------------------------------------------------------------
+# 5. (선택) 타 조직 프로젝트 반입 허용 & Keyless SA Impersonation
+# ------------------------------------------------------------------------------
+# 타 GCP Organization에서 프로젝트/폴더를 이관해 올 때만 원본 Org ID를 입력 (이관 불필요/완료 시 [])
+allowed_import_source_org_ids = []
+
+# 프로덕션 환경(또는 iam/multi-org-group-iam 연계 시) Keyless SA Impersonation 설정
+# tf_service_account_email = "tf-iam-admin@iam-seed-prod-01.iam.gserviceaccount.com"
+# billing_project_id       = "iam-seed-prod-01"
