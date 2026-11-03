@@ -7,7 +7,7 @@
 # [안전한 활성화 방법]
 # 1. Cloud Asset Inventory로 기존 공개 버킷·외부 노출 서비스를 먼저 스캔합니다.
 # 2. 예외가 필요한 프로젝트 ID를 terraform.tfvars의 project_tag_exemptions에 추가하고 apply 합니다.
-# 3. 준비가 완료된 정책 블록만 주석(/* ... */)을 해제하고 terraform apply -parallelism=2 를 실행합니다.
+# 3. 준비가 완료된 정책 블록만 주석(/* ... */)을 해제하고 terraform apply -parallelism=1 을 실행합니다.
 
 /*
 # O-01. [소급 차단 주의!] Cloud Storage 퍼블릭 액세스 방지

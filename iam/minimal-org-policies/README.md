@@ -113,6 +113,7 @@ minimal-org-policies/
 - `roles/resourcemanager.tagUser` (프로젝트 및 리소스에 예외 태그 부착 — 개별 Cloud Run 서비스나 VM에 직접 태그를 붙일 때는 해당 리소스의 태그 바인딩 권한도 함께 필요)
 - `roles/resourcemanager.folderAdmin` (실습용 폴더 또는 환경 폴더 생성 시)
 - `roles/browser` (`project_tag_exemptions`에서 프로젝트 번호를 조회할 때 필요)
+- `roles/cloudasset.viewer` (조직 전체 리소스/IAM 사전 점검 시 Cloud Asset Inventory 조회 권한)
 
 [`iam/multi-org-group-iam`](../multi-org-group-iam) 예제에서 만든 Seed 프로젝트(`iam-seed-prod-01`)와 `tf-iam-admin` 서비스 계정을 그대로 이어서 쓴다면 아래 명령으로 API와 권한만 추가하면 됩니다.
 
@@ -124,6 +125,7 @@ TF_SA_EMAIL="tf-iam-admin@${SEED_PROJECT_ID}.iam.gserviceaccount.com"
 gcloud services enable \
   orgpolicy.googleapis.com \
   cloudresourcemanager.googleapis.com \
+  cloudasset.googleapis.com \
   --project="${SEED_PROJECT_ID}"
 
 for ROLE in \
@@ -131,6 +133,7 @@ for ROLE in \
   roles/resourcemanager.tagAdmin \
   roles/resourcemanager.tagUser \
   roles/resourcemanager.folderAdmin \
+  roles/cloudasset.viewer \
   roles/browser; do
   gcloud organizations add-iam-policy-binding "${ORG_ID}" \
     --member="serviceAccount:${TF_SA_EMAIL}" \
@@ -152,24 +155,25 @@ gcloud auth application-default login
 cp terraform.tfvars.example terraform.tfvars
 ```
 
-`terraform.tfvars` 파일을 열어 조직 ID와 도메인을 본인 환경에 맞게 수정합니다.
+`terraform.tfvars` 파일을 열어 조직 ID, Quota/Billing 프로젝트 및 도메인을 본인 환경에 맞게 수정합니다.
 
 ```hcl
 org_id                      = "123456789012"
 policy_scope                = "folder"
 handson_folder_display_name = "policy-handson-lab"
+billing_project_id          = "iam-seed-prod-01" # ADC 사용자 계정 실행 시 Quota Project 지정 필수
 
 allowed_contact_domains = [
   "@example.com",
 ]
 ```
 
-여러 개의 `.managed.` 정책을 동시에 만들 때 Org Policy API에서 동시 변경 잠금(`409 CONCURRENT_POLICY_CHANGES`)이 걸리지 않도록 `-parallelism=2` 옵션을 붙여 실행합니다.
+여러 개의 `.managed.` 정책을 동시에 만들 때 Org Policy API에서 동시 변경 잠금(`409 CONCURRENT_POLICY_CHANGES`)이 걸리지 않도록 `-parallelism=1` 옵션을 붙여 1개씩 순차 생성합니다. (정책당 약 1~2초 소요되므로 30초 내외로 완료됩니다.)
 
 ```bash
 terraform init
 terraform plan
-terraform apply -parallelism=2
+terraform apply -parallelism=1
 
 # 만들어진 실습 폴더 ID 확인
 HANDSON_FOLDER=$(terraform output -raw handson_folder_id)
@@ -218,7 +222,7 @@ resource "google_org_policy_policy" "run_require_invoker_iam" {
 ```
 
 ```bash
-terraform apply -parallelism=2
+terraform apply -parallelism=1
 
 # 똑같은 명령으로 다시 배포해 보면 조직 정책 위반(403)으로 바로 차단됩니다.
 gcloud run deploy policy-handson-svc-blocked \
@@ -241,7 +245,7 @@ project_tag_exemptions = {
 ```
 
 ```bash
-terraform apply -parallelism=2
+terraform apply -parallelism=1
 
 # 태그 바인딩이 반영된 뒤(약 10~30초) 다시 실행하면 정상 배포됩니다.
 gcloud run deploy policy-handson-svc-blocked \
@@ -269,24 +273,25 @@ gcloud run services delete policy-handson-svc policy-handson-svc-blocked \
 
 2024년 5월 이후에 만들어진 GCP Organization에는 `iam.managed.disableServiceAccountKeyCreation` 등 일부 보안 정책이 처음부터 강제(`spec`) 상태로 들어가 있습니다. 그대로 `apply`를 실행하면 이미 존재하는 정책이라 `409` 에러가 나거나, 원래 강제 중이던 정책이 `dry_run_spec`으로 풀릴 수 있으므로 먼저 아래 스크립트를 실행합니다.
 
-1. `terraform.tfvars`에서 `policy_scope = "organization"`으로 바꾸고, 앞서 테스트하며 수정했던 [`audit_first_policies.tf`](./audit_first_policies.tf) 내용이 있다면 원래대로 돌려놓습니다.
-2. `generate-imports.sh` 스크립트를 실행해 현재 조직에 설정된 정책을 확인하고 `imports.tf` 파일을 생성합니다.
+1. **실습 프로젝트 정리**: 앞서 `policy_scope = "folder"`로 생성했던 실습 폴더(`policy-handson-lab`) 안에 테스트 프로젝트가 남아있다면, 먼저 프로젝트를 삭제(`gcloud projects delete <TEST_PROJECT_ID>`)하거나 상위/다른 폴더로 이동(`gcloud beta projects move <TEST_PROJECT_ID> --organization=<ORG_ID>`)하세요. 하위 프로젝트가 남아있으면 폴더 삭제 시 `Error 400: Folder is not empty`가 발생합니다.
+2. `terraform.tfvars`에서 `policy_scope = "organization"`으로 바꾸고, 앞서 테스트하며 수정했던 [`audit_first_policies.tf`](./audit_first_policies.tf) 내용이 있다면 원래대로 돌려놓습니다.
+3. `generate-imports.sh` 스크립트를 실행해 현재 조직에 설정된 정책을 확인하고 `imports.tf` 파일을 생성합니다. (`terraform.tfvars`에 `billing_project_id` 또는 서비스 계정이 설정되어 있으면 자동으로 감지하여 실행합니다.)
    ```bash
-   # 로컬 ADC 계정 사용 시
+   # 로컬 ADC 계정 사용 시 (terraform.tfvars의 billing_project_id 자동 반영)
    ./scripts/generate-imports.sh --org 123456789012
 
-   # 서비스 계정 Impersonation 사용 시
+   # 서비스 계정 Impersonation 명시 지정 시
    ./scripts/generate-imports.sh --org 123456789012 \
      --impersonate-sa tf-iam-admin@iam-seed-prod-01.iam.gserviceaccount.com \
      --billing-project iam-seed-prod-01
    ```
-3. 스크립트 출력 메시지를 확인합니다.
+4. 스크립트 출력 메시지를 확인합니다.
    - 이미 강제 중인 정책이 `dry_run_spec`으로 바뀐다는 경고가 나오면, 안내된 대로 [`audit_first_policies.tf`](./audit_first_policies.tf)에서 해당 리소스의 `dry_run_spec`을 `spec`으로 바꿔 기존 강제 상태를 유지합니다.
    - `iam.allowedPolicyMemberDomains` 같은 예전 레거시 정책이 함께 켜져 있다는 안내가 나오면, `.managed.` 정책 적용 후 중복 차단이 일어나지 않도록 레거시 정책 정리를 검토합니다.
-4. 변경 내역을 확인하고 배포합니다. (`imports.tf`는 `.gitignore`에 등록되어 있어 Git에는 올라가지 않습니다.)
+5. 변경 내역을 확인하고 배포합니다. (`imports.tf`는 `.gitignore`에 등록되어 있어 Git에는 올라가지 않습니다.)
    ```bash
    terraform plan
-   terraform apply -parallelism=2
+   terraform apply -parallelism=1
    ```
 
 ### 2. 기존 리소스 점검 및 단계적 전환
@@ -296,21 +301,32 @@ gcloud run services delete policy-handson-svc policy-handson-svc-blocked \
 ```bash
 ORG_ID="123456789012"
 
-# 공개(allUsers / allAuthenticatedUsers) 권한이 열려 있는 GCS 버킷 조회
+# 1. 공개(allUsers / allAuthenticatedUsers) 권한이 열려 있는 GCS 버킷 조회
 gcloud asset search-all-iam-policies \
   --scope="organizations/${ORG_ID}" \
-  --query="policy:(allUsers OR allAuthenticatedUsers) resource://storage.googleapis.com"
+  --asset-types="storage.googleapis.com/Bucket" \
+  --query="policy:(allUsers OR allAuthenticatedUsers)" \
+  --format="table(project.basename():label=PROJECT, resource.basename():label=BUCKET, policy.bindings.role:label=ROLE)"
 
-# 외부 공인 IP가 붙어 있는 Compute Engine VM 조회
+# 2. 외부 공인 IP가 할당된 Compute Engine VM 조회
 gcloud asset search-all-resources \
   --scope="organizations/${ORG_ID}" \
   --asset-types="compute.googleapis.com/Instance" \
-  --query="externalIPs:*"
+  --filter="additionalAttributes.externalIPs:*" \
+  --format="table(project.basename():label=PROJECT, location:label=ZONE, name.basename():label=INSTANCE, additionalAttributes.externalIPs.list():label=EXTERNAL_IPS)"
 
-# Cloud Run 서비스 목록 조회
+# 3. 조직 내 프로비저닝된 외부 공인 IP 주소(Address) 자산 직접 조회
 gcloud asset search-all-resources \
   --scope="organizations/${ORG_ID}" \
-  --asset-types="run.googleapis.com/Service"
+  --asset-types="compute.googleapis.com/Address" \
+  --filter="addressType:EXTERNAL" \
+  --format="table(project.basename():label=PROJECT, location:label=REGION, name.basename():label=NAME, additionalAttributes.address:label=IP_ADDRESS, additionalAttributes.status:label=STATUS)"
+
+# 4. Cloud Run 서비스 목록 조회
+gcloud asset search-all-resources \
+  --scope="organizations/${ORG_ID}" \
+  --asset-types="run.googleapis.com/Service" \
+  --format="table(project.basename():label=PROJECT, location:label=REGION, name.basename():label=SERVICE)"
 ```
 
 > [!WARNING]
@@ -336,7 +352,7 @@ regional_resource_tag_exemptions = [
 ]
 ```
 
-태그를 먼저 적용(`terraform apply -parallelism=2`)한 뒤, 준비된 정책은 [`audit_first_policies.tf`](./audit_first_policies.tf)에서 `dry_run_spec`을 `spec`으로 바꾸거나 [`opt_in_policies.tf`](./opt_in_policies.tf)에서 해당 블록의 `/* ... */` 주석을 지우고 다시 `apply` 하면 됩니다.
+태그를 먼저 적용(`terraform apply -parallelism=1`)한 뒤, 준비된 정책은 [`audit_first_policies.tf`](./audit_first_policies.tf)에서 `dry_run_spec`을 `spec`으로 바꾸거나 [`opt_in_policies.tf`](./opt_in_policies.tf)에서 해당 블록의 `/* ... */` 주석을 지우고 다시 `apply` 하면 됩니다.
 
 > **참고 (타 조직에서 프로젝트를 이관해 올 때)**: `terraform.tfvars`의 `allowed_import_source_org_ids = ["<원본_ORG_ID>"]`에 원본 조직 ID를 넣으면 `resourcemanager.allowedImportSources` 정책이 활성화됩니다. 이관을 내보내는 원본 조직에서도 `resourcemanager.allowedExportDestinations`와 (Shared VPC 포함 이관 시) `resourcemanager.allowEnabledServicesForExport = ["SHARED_VPC"]`가 함께 열려 있어야 합니다. 이관이 끝나면 빈 리스트(`[]`)로 되돌려 두는 것이 안전합니다.
 
@@ -444,12 +460,16 @@ ORDER BY
 
 ## 리소스 정리 및 자주 겪는 오류
 
-폴더 실습 환경을 지울 때는 먼저 `policy-handson-lab` 폴더 안에 넣어둔 테스트 프로젝트를 밖으로 옮기거나 삭제한 뒤 `terraform destroy -parallelism=2`를 실행하세요. 또한 콘솔이나 `gcloud`로 직접 붙여둔 `exempt-*` 태그 바인딩이 남아 있으면 태그 삭제가 거부되므로 수동 바인딩을 먼저 해제해야 합니다.
+폴더 실습 환경을 지울 때는 먼저 `policy-handson-lab` 폴더 안에 넣어둔 테스트 프로젝트를 밖으로 옮기거나 삭제한 뒤 `terraform destroy -parallelism=1`을 실행하세요. 또한 콘솔이나 `gcloud`로 직접 붙여둔 `exempt-*` 태그 바인딩이 남아 있으면 태그 삭제가 거부되므로 수동 바인딩을 먼저 해제해야 합니다.
 
 | 오류 메시지 / 증상 | 원인 및 해결 방법 |
 | :--- | :--- |
-| `Error 409: Creating policy failed ... CONCURRENT_POLICY_CHANGES` | 같은 폴더나 조직에 여러 `.managed.` 정책을 동시에 생성·수정할 때 Org Policy API 동시성 잠금이 걸린 경우입니다. `terraform apply -parallelism=2`로 실행하세요. 이미 일부 생성된 상태에서 그대로 다시 실행하면 빠진 정책만 마저 만들어집니다. |
-| `Error 409: Requested entity already exists` (`policies/...`) | 조직 생성 시 기본으로 들어간 정책이나 수동으로 만든 정책이 이미 있는 경우입니다. `./scripts/generate-imports.sh --org <ORG_ID>`를 실행해 `imports.tf`를 만든 뒤 다시 적용하세요. |
+| `Error 409: Creating policy failed ... CONCURRENT_POLICY_CHANGES` 또는 `Code: ABORTED (concurrent policy changes)` | 같은 폴더나 조직에 여러 정책을 동시에 생성·수정하거나 삭제할 때 Org Policy API 동시성 잠금(낙관적 락 충돌)이 걸린 경우입니다. 반드시 `terraform apply -parallelism=1`을 사용하여 1개씩 순차 실행하세요. 이미 일부 적용된 상태에서 그대로 다시 실행하면 남은 작업만 이어서 진행됩니다. |
+| `Error 403: ... The orgpolicy.googleapis.com API requires a quota project` | 로컬 사용자 계정(ADC, `gcloud auth application-default login`)으로 실행 시 Quota Project가 지정되지 않은 경우입니다. `terraform.tfvars`에 `billing_project_id = "<프로젝트_ID>"`를 추가하고 다시 실행하세요. |
+| `Error 409: Requested entity already exists` (`policies/...`) | 조직 생성 시 기본으로 들어간 정책이나 콘솔에서 수동으로 만든 정책이 이미 존재하는 경우입니다. `./scripts/generate-imports.sh --org <ORG_ID>`를 실행해 `imports.tf`를 생성한 뒤 다시 적용하세요. |
+| `Error 400: cannot destroy folder without setting deletion_protection=false` | `policy_scope`를 'folder'에서 'organization'으로 바꿀 때 기존 실습 폴더를 삭제하려 하나 삭제 보호(`deletion_protection`)가 켜져 있는 경우입니다. `main.tf`의 `google_folder.handson_lab` 블록에 `deletion_protection = false`가 지정되어 있는지 확인하세요. |
+| `Error 400: Folder is not empty` | 실습 폴더(`policy-handson-lab`) 안에 테스트용으로 생성했던 하위 프로젝트가 남아있는 상태에서 폴더 삭제를 시도한 경우입니다. 해당 프로젝트를 먼저 삭제(`gcloud projects delete <PROJECT_ID>`)하거나 상위 폴더/조직 루트로 이동(`gcloud beta projects move <PROJECT_ID> --organization=<ORG_ID>`)한 뒤 다시 `apply` 하세요. |
+| `gcloud asset search-all-resources ... INVALID_ARGUMENT: Unsupported field: 'externalIPs'` | Asset Inventory 백엔드 검색 쿼리(`--query`)에 지원되지 않는 중첩 필드(`externalIPs:*`)를 지정한 경우입니다. `--query` 대신 gcloud 클라이언트 필터인 `--filter="additionalAttributes.externalIPs:*"`와 `--format="table(...)"`을 사용하세요. |
 | 예외 태그를 붙였는데도 계속 차단됨 | 조직에 예전 레거시 제약조건(예: `iam.disableServiceAccountKeyCreation`, `iam.allowedPolicyMemberDomains`, `compute.vmExternalIpAccess`)이 별도로 켜져 있어 태그 조건 없이 막고 있는 경우가 많습니다. `gcloud org-policies list --organization=<ORG_ID>`로 확인 후 중복된 레거시 정책을 정리하세요. |
 | 버킷에 태그를 붙였는데 `storage.publicAccessPrevention`에서 `403` 발생 | 레거시 제약조건은 버킷에 직접 붙인 태그를 읽지 못합니다. 버킷이 속한 프로젝트(`project_tag_exemptions`)나 상위 폴더에 `public_storage` 태그를 붙여야 합니다. |
 | `Error 409: TagKey ... already exists` | 같은 조직 안에 동일한 이름(`exempt-*`)의 태그 키가 이미 있을 때 발생합니다. 공유 테스트 조직이라면 `tag_key_prefix = "lab-exempt"`처럼 접두어를 바꾸거나 기존 태그를 import해서 사용하세요. |

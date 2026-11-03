@@ -70,11 +70,14 @@ regional_resource_tag_exemptions = [
 ]
 
 # ------------------------------------------------------------------------------
-# 4. (선택) 타 조직 프로젝트 반입 허용 & Keyless SA Impersonation
+# 4. Quota/Billing 프로젝트 및 인증 설정
 # ------------------------------------------------------------------------------
-# 타 GCP Organization에서 프로젝트/폴더를 이관해 올 때만 원본 Org ID를 입력 (이관 불필요/완료 시 [])
-allowed_import_source_org_ids = []
+# Org Policy 및 Resource Manager API 호출 시 Quota Project(청구/할당량 프로젝트)가 필요합니다.
+# 로컬 사용자 계정(ADC) 또는 서비스 계정이 접근 가능한 프로젝트 ID를 지정하세요.
+billing_project_id = "iam-seed-prod-01"
 
-# 프로덕션 환경(또는 iam/multi-org-group-iam 연계 시) Keyless SA Impersonation 설정
+# (선택) 프로덕션 CI/CD 또는 팀 협업 시 Keyless SA Impersonation 설정
 # tf_service_account_email = "tf-iam-admin@iam-seed-prod-01.iam.gserviceaccount.com"
-# billing_project_id       = "iam-seed-prod-01"
+
+# (선택) 타 GCP Organization에서 프로젝트/폴더를 이관해 올 때만 원본 Org ID를 입력 (이관 불필요/완료 시 [])
+allowed_import_source_org_ids = []

@@ -29,8 +29,9 @@ locals {
 resource "google_folder" "handson_lab" {
   count = var.policy_scope == "folder" && var.target_folder_id == "" ? 1 : 0
 
-  display_name = var.handson_folder_display_name
-  parent       = "organizations/${var.org_id}"
+  display_name        = var.handson_folder_display_name
+  parent              = "organizations/${var.org_id}"
+  deletion_protection = false
 }
 
 # 선택 사항: 표준 환경 폴더 구조 (Prod, Dev, Shared)

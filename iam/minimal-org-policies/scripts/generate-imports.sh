@@ -84,6 +84,33 @@ if [[ -z "${SCOPE_FLAG}" || -z "${SCOPE_ID}" ]]; then
   exit 1
 fi
 
+# terraform.tfvars 파일이 존재하면 billing_project_id 및 tf_service_account_email 자동 감지
+TFVARS_FILE="${ROOT_DIR}/terraform.tfvars"
+if [[ -f "${TFVARS_FILE}" ]]; then
+  if [[ -z "${BILLING_PROJECT}" ]]; then
+    DETECTED_BILLING="$(python3 -c '
+import re
+with open("'"${TFVARS_FILE}"'", encoding="utf-8") as f:
+    m = re.search(r"^\s*billing_project_id\s*=\s*\"([^\"]+)\"", f.read(), re.M)
+    if m: print(m.group(1))
+' 2>/dev/null || true)"
+    if [[ -n "${DETECTED_BILLING}" ]]; then
+      BILLING_PROJECT="${DETECTED_BILLING}"
+    fi
+  fi
+  if [[ -z "${IMPERSONATE_SA}" ]]; then
+    DETECTED_SA="$(python3 -c '
+import re
+with open("'"${TFVARS_FILE}"'", encoding="utf-8") as f:
+    m = re.search(r"^\s*tf_service_account_email\s*=\s*\"([^\"]+)\"", f.read(), re.M)
+    if m: print(m.group(1))
+' 2>/dev/null || true)"
+    if [[ -n "${DETECTED_SA}" ]]; then
+      IMPERSONATE_SA="${DETECTED_SA}"
+    fi
+  fi
+fi
+
 GCLOUD_ARGS=("${SCOPE_FLAG}=${SCOPE_ID}" "--format=json")
 if [[ -n "${IMPERSONATE_SA}" ]]; then
   GCLOUD_ARGS+=("--impersonate-service-account=${IMPERSONATE_SA}")
@@ -93,17 +120,40 @@ if [[ -n "${BILLING_PROJECT}" ]]; then
 fi
 
 echo "==> [1/2] ${PARENT_PATH} 에 현재 존재하는 Organization Policy 목록 및 강제 상태를 조회합니다..."
-EXISTING_JSON="$(gcloud org-policies list "${GCLOUD_ARGS[@]}")"
+TMP_JSON="$(mktemp)"
+trap 'rm -f "${TMP_JSON}"' EXIT
+
+# gcloud org-policies list 로 현재 설정된 제약조건 이름 목록 추출
+mapfile -t CONSTRAINTS < <(
+  gcloud org-policies list "${GCLOUD_ARGS[@]}" \
+    | python3 -c 'import json,sys; raw = sys.stdin.read().strip(); data = json.loads(raw) if raw else []; [print(p.get("constraint") or p.get("name","").split("/")[-1]) for p in data if p.get("constraint") or p.get("name")]'
+)
+echo "    - 발견된 기존 정책: ${#CONSTRAINTS[@]}개 (각 정책 상세 spec 조회 중...)"
+
+# gcloud org-policies describe 로 각 정책의 전체 원본 spec 수집
+{
+  echo "["
+  first=1
+  for c in "${CONSTRAINTS[@]}"; do
+    [[ -z "$c" ]] && continue
+    [[ $first -eq 0 ]] && echo ","
+    gcloud org-policies describe "$c" "${GCLOUD_ARGS[@]}"
+    first=0
+  done
+  echo "]"
+} > "${TMP_JSON}"
 
 echo "==> [2/2] 로컬 *.tf 정적 정책 선언과 대조하여 ${OUTPUT_FILE} 파일을 생성합니다..."
-python3 - "${EXISTING_JSON}" "${ROOT_DIR}" "${PARENT_PATH}" "${OUTPUT_FILE}" <<'PYEOF'
+python3 - "${TMP_JSON}" "${ROOT_DIR}" "${PARENT_PATH}" "${OUTPUT_FILE}" <<'PYEOF'
 import glob
 import json
 import os
 import re
 import sys
 
-existing_raw, root_dir, parent_path, output_file = sys.argv[1:5]
+existing_path, root_dir, parent_path, output_file = sys.argv[1:5]
+with open(existing_path, encoding="utf-8") as f:
+    existing_raw = f.read()
 
 def strip_hcl_comments(text: str) -> str:
     # Remove /* ... */ block comments first, then # / // line comments
@@ -198,9 +248,7 @@ def is_live_spec_enforced(policy_obj: dict) -> bool:
     for r in rules:
         if "condition" in r:
             continue
-        if r.get("enforce") is True:
-            return True
-        if r.get("denyAll") is True:
+        if r.get("enforce") is True or r.get("denyAll") is True:
             return True
         if "values" in r or "parameters" in r:
             if r.get("enforce") is not False and r.get("allowAll") is not True:
@@ -213,6 +261,13 @@ for item in existing_list:
     name = item.get("name", "")
     if "/policies/" in name:
         constraint = name.split("/policies/", 1)[1]
+    elif "constraints/" in name:
+        constraint = name.split("constraints/", 1)[1]
+    else:
+        constraint = item.get("constraint", "")
+    if constraint:
+        if constraint.startswith("constraints/"):
+            constraint = constraint.split("constraints/", 1)[1]
         existing_by_constraint[constraint] = item
 
 existing_constraints = sorted(existing_by_constraint.keys())
