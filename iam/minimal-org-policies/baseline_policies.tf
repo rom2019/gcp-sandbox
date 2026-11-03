@@ -6,6 +6,9 @@
 # 개별 규칙을 직접 수정하여 직관적으로 관리할 수 있습니다.
 
 # B-01. IAM 허용 주체 제한 (차세대 DRS — 레거시 iam.allowedPolicyMemberDomains 대체)
+# - 2024년 5월 이후 생성된 신규 조직에는 Secure-by-Default로 이미 강제(spec)되어 있습니다.
+# - 기존에 도메인 제한 없이 외부 협업 계정이나 공개 서비스를 운영하던 조직(Brownfield)에 처음 도입할 때는
+#   'spec'을 'dry_run_spec'으로 바꾸어 감사 로그를 먼저 확인한 뒤 강제 전환하는 것을 권장합니다.
 resource "google_org_policy_policy" "allowed_policy_members" {
   name   = "${local.policy_parent}/policies/iam.managed.allowedPolicyMembers"
   parent = local.policy_parent

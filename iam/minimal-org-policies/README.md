@@ -55,7 +55,7 @@ flowchart LR
 
 ```text
 minimal-org-policies/
-├── versions.tf                # Terraform(>= 1.17.0) 및 Google Provider(~> 8.0) 설정
+├── versions.tf                # Terraform(>= 1.5.0) 및 Google Provider(~> 8.0) 설정
 ├── variables.tf               # 적용 범위(폴더/조직), 도메인·이미지 파라미터, 예외 태그 변수
 ├── main.tf                    # 정책 부착 경로(policy_parent), 태그 조건식, 실습/환경 폴더
 ├── tags.tf                    # 8종 예외 태그(TagKey/TagValue) 및 프로젝트·리소스 태그 바인딩
@@ -72,8 +72,8 @@ minimal-org-policies/
 
 | 구분 | 제약조건 이름 (`constraints/` 제외) | 초기 상태 | 예외 키 (`exempt-*`) | 태그 인식 범위 | 비고 |
 | :--- | :--- | :---: | :---: | :---: | :--- |
-| **Baseline** | `iam.managed.allowedPolicyMembers` | `spec` | `public_iam` | 프로젝트·리소스 | 차세대 도메인 제한 (`organizations/<ORG_ID>` 기준) |
-| Baseline | `iam.automaticIamGrantsForDefaultServiceAccounts` | `spec` | - | - | 신규 생성 프로젝트의 기본 SA `Editor` 자동 부여 차단 |
+| **Baseline** | `iam.managed.allowedPolicyMembers` | `spec` | `public_iam` | 프로젝트·리소스 | 차세대 도메인 제한 (2024.05+ 신규 조직 기본 강제 / 기존 조직은 `dry_run_spec` 시작 가능) |
+| Baseline | `iam.automaticIamGrantsForDefaultServiceAccounts` | `spec` | - | - | 신규 생성 프로젝트의 기본 SA `Editor` 자동 부여 차단 (2024.05+ 기본 강제) |
 | Baseline | `iam.serviceAccountKeyExposureResponse` | `spec` | - | - | 공개 저장소 등에 유출된 SA 키 감지 시 자동 비활성화 |
 | Baseline | `compute.managed.disableSerialPortAccess` | `spec` | - | - | VM 직렬 포트 접근 차단 |
 | Baseline | `compute.skipDefaultNetworkCreation` | `spec` | - | - | 신규 프로젝트 생성 시 `default` VPC 자동 생성 생략 |
@@ -81,18 +81,18 @@ minimal-org-policies/
 | Baseline | `compute.restrictXpnProjectLienRemoval` | `spec` | - | - | Shared VPC 호스트 프로젝트 삭제 방지 잠금(Lien) 보호 |
 | Baseline | `sql.managed.restrictPublicIp` | `spec` | `public_sql` | 프로젝트·인스턴스 | 신규 설정부터 적용 (기존 공인 IP 인스턴스는 유지됨) |
 | Baseline | `sql.managed.restrictAuthorizedNetworks` | `spec` | `public_sql` | 프로젝트·인스턴스 | 신규 설정부터 적용 |
-| Baseline | `compute.setNewProjectDefaultToZonalDNSOnly` | `spec` | - | - | 신규 프로젝트 내부 DNS 기본값을 Zonal DNS로 설정 |
-| Baseline | `essentialcontacts.managed.allowedContactDomains` | `spec` | - | - | 중요 보안·장애 알림 수신 이메일 도메인 제한 |
+| Baseline | `compute.setNewProjectDefaultToZonalDNSOnly` | `spec` | - | - | 신규 프로젝트 내부 DNS 기본값을 Zonal DNS로 설정 (2024.05+ 기본 강제) |
+| Baseline | `essentialcontacts.managed.allowedContactDomains` | `spec` | - | - | 중요 알림 수신 도메인 제한 (`allowed_contact_domains` 필수 입력, 2024.05+ 기본 강제) |
 | Baseline | `compute.managed.disableNestedVirtualization` | `spec` | - | - | VM 중첩 가상화 비활성화 |
 | **Audit-First** | `iam.managed.disableServiceAccountKeyCreation` | `dry_run_spec` | `sa_key` | 프로젝트 | 2024년 5월 이후 생성된 조직은 이미 강제 중일 수 있음 |
-| Audit-First | `iam.managed.disableServiceAccountKeyUpload` | `dry_run_spec` | `sa_key` | 프로젝트 | 외부 생성 공개키 업로드 감사 후 차단 |
+| Audit-First | `iam.managed.disableServiceAccountKeyUpload` | `dry_run_spec` | `sa_key` | 프로젝트 | 공개키 업로드 감사 후 차단 (2024년 5월 이후 생성된 조직은 이미 강제 중일 수 있음) |
 | Audit-First | `compute.managed.requireOsLogin` | `dry_run_spec` | `os_login` | 프로젝트·VM | 메타데이터 SSH 키 사용 여부 확인 후 OS Login 전환 |
 | Audit-First | `compute.managed.trustedImageProjects` | `dry_run_spec`* | `trusted_image` | 프로젝트·디스크 | (Preview) `trusted_image_projects` 변수 입력 시 생성 |
-| Audit-First | `compute.managed.restrictProtocolForwardingCreationForTypes` | `dry_run_spec` | `external_ip` | 프로젝트·포워딩룰 | `INTERNAL` 포워딩만 허용 |
+| Audit-First | `compute.managed.restrictProtocolForwardingCreationForTypes` | `dry_run_spec` | `external_ip` | 프로젝트·포워딩룰 | `INTERNAL` 포워딩만 허용 (2024년 5월 이후 생성된 조직은 이미 강제 중일 수 있음) |
 | Audit-First | `compute.managed.vmExternalIpAccess` | `dry_run_spec` | `external_ip` | 프로젝트·VM | VM 외부 공인 IP 차단 (개별 VM 단위 태그 예외 가능) |
 | Audit-First | `run.managed.requireInvokerIam` | `dry_run_spec` | `serverless` | 프로젝트·서비스 | 무인증(`--no-invoker-iam-check`) Cloud Run 배포 확인 후 차단 |
 | **Opt-In** | `storage.publicAccessPrevention` | 주석 | `public_storage` | 프로젝트·폴더만 | **소급 적용됨** — 공개 버킷 프로젝트에 태그 먼저 부착 필수 |
-| Opt-In | `storage.uniformBucketLevelAccess` | 주석 | `public_storage` | 프로젝트·폴더만 | 신규 버킷에 균일한 버킷 수준 액세스(UBLA) 강제 |
+| Opt-In | `storage.uniformBucketLevelAccess` | 주석 | `public_storage` | 프로젝트·폴더만 | 신규 버킷에 균일한 버킷 수준 액세스(UBLA) 강제 (2024.05+ 기본 강제) |
 | Opt-In | `run.allowedIngress` | 주석 | `serverless` | 프로젝트·폴더만 | 내부 및 Cloud Load Balancing 경유 트래픽만 허용 |
 | Opt-In | `run.allowedVPCEgress` | 주석 | `serverless` | 프로젝트·폴더만 | Cloud Run VPC Egress 경유 강제 |
 | Opt-In | `cloudfunctions.allowedIngressSettings` | 주석 | `serverless` | 프로젝트·폴더만 | Cloud Functions (1세대) 인그레스 제한 |
@@ -106,7 +106,7 @@ minimal-org-policies/
 
 ## 사전 준비 사항
 
-실행에는 **Terraform `v1.17.0` 이상**과 `gcloud` CLI가 필요하며, 실행 계정(또는 Impersonation 대상 서비스 계정)에 조직 레벨에서 아래 권한이 있어야 합니다.
+실행에는 **Terraform `v1.5.0` 이상**과 `gcloud` CLI가 필요하며, 실행 계정(또는 Impersonation 대상 서비스 계정)에 조직 레벨에서 아래 권한이 있어야 합니다.
 
 - `roles/orgpolicy.policyAdmin` (조직/폴더 정책 생성 및 수정)
 - `roles/resourcemanager.tagAdmin` (`exempt-*` 태그 키 및 값 생성)
@@ -305,28 +305,29 @@ ORG_ID="123456789012"
 gcloud asset search-all-iam-policies \
   --scope="organizations/${ORG_ID}" \
   --asset-types="storage.googleapis.com/Bucket" \
-  --query="policy:(allUsers OR allAuthenticatedUsers)" \
-  --format="table(project.basename():label=PROJECT, resource.basename():label=BUCKET, policy.bindings.role:label=ROLE)"
+  --query="memberTypes:(allUsers OR allAuthenticatedUsers)" \
+  --format="table(project.basename():label=PROJECT_NUMBER, resource.basename():label=BUCKET, policy.bindings.role:label=ROLE)"
 
 # 2. 외부 공인 IP가 할당된 Compute Engine VM 조회
 gcloud asset search-all-resources \
   --scope="organizations/${ORG_ID}" \
   --asset-types="compute.googleapis.com/Instance" \
   --filter="additionalAttributes.externalIPs:*" \
-  --format="table(project.basename():label=PROJECT, location:label=ZONE, name.basename():label=INSTANCE, additionalAttributes.externalIPs.list():label=EXTERNAL_IPS)"
+  --format="table(project.basename():label=PROJECT_NUMBER, location:label=ZONE, name.basename():label=INSTANCE, additionalAttributes.externalIPs.list():label=EXTERNAL_IPS)"
 
 # 3. 조직 내 프로비저닝된 외부 공인 IP 주소(Address) 자산 직접 조회
 gcloud asset search-all-resources \
   --scope="organizations/${ORG_ID}" \
   --asset-types="compute.googleapis.com/Address" \
-  --filter="addressType:EXTERNAL" \
-  --format="table(project.basename():label=PROJECT, location:label=REGION, name.basename():label=NAME, additionalAttributes.address:label=IP_ADDRESS, additionalAttributes.status:label=STATUS)"
+  --read-mask="name,project,location,state,additionalAttributes,versionedResources" \
+  --filter="versionedResources.resource.addressType=EXTERNAL" \
+  --format="table(project.basename():label=PROJECT_NUMBER, location:label=REGION, name.basename():label=NAME, additionalAttributes.address:label=IP_ADDRESS, state:label=STATUS)"
 
 # 4. Cloud Run 서비스 목록 조회
 gcloud asset search-all-resources \
   --scope="organizations/${ORG_ID}" \
   --asset-types="run.googleapis.com/Service" \
-  --format="table(project.basename():label=PROJECT, location:label=REGION, name.basename():label=SERVICE)"
+  --format="table(project.basename():label=PROJECT_NUMBER, location:label=REGION, name.basename():label=SERVICE)"
 ```
 
 > [!WARNING]

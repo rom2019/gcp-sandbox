@@ -15,11 +15,11 @@ variable "org_id" {
 variable "policy_scope" {
   description = <<-EOT
     조직 정책을 부착할 계층 범위:
-    - "folder"       : 하위 폴더 단위에만 격리 적용 (사전 Hands-On 실습, 정책 영향도 검증, 공유 테스트 조직용 권장)
+    - "folder"       : 하위 폴더 단위에만 격리 적용 (사전 Hands-On 실습, 정책 영향도 검증, 공유 테스트 조직용 기본값)
     - "organization" : Organization 루트(organizations/<org_id>) 전체에 본 배포
   EOT
   type        = string
-  default     = "organization"
+  default     = "folder"
 
   validation {
     condition     = contains(["organization", "folder"], var.policy_scope)
@@ -79,11 +79,8 @@ variable "drs_allowed_member_subjects" {
 }
 
 variable "allowed_contact_domains" {
-  description = "essentialcontacts.managed.allowedContactDomains(보안·장애 중요 알림) 수신을 허용할 이메일 도메인 목록 ('@'로 시작)"
+  description = "essentialcontacts.managed.allowedContactDomains(보안·장애 중요 알림) 수신을 허용할 이메일 도메인 목록 ('@'로 시작, 필수 입력)"
   type        = list(string)
-  default = [
-    "@example.com",
-  ]
 
   validation {
     condition     = length(var.allowed_contact_domains) > 0 && alltrue([for d in var.allowed_contact_domains : startswith(d, "@")])
