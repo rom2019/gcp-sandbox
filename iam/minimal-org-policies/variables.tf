@@ -83,8 +83,8 @@ variable "allowed_contact_domains" {
   type        = list(string)
 
   validation {
-    condition     = length(var.allowed_contact_domains) > 0 && alltrue([for d in var.allowed_contact_domains : startswith(d, "@")])
-    error_message = "최소 1개 이상의 '@domain.com' 형식 이메일 도메인이 필요합니다."
+    condition     = length(var.allowed_contact_domains) > 0 && alltrue([for d in var.allowed_contact_domains : startswith(d, "@")]) && !contains(var.allowed_contact_domains, "@example.com") && !contains(var.allowed_contact_domains, "@your-company.com")
+    error_message = "최소 1개 이상의 실제 '@domain.com' 형식 이메일 도메인이 필요합니다 (예시 값 '@example.com' 등은 실제 도메인으로 변경해 주세요)."
   }
 }
 

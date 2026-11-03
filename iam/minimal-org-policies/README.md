@@ -72,7 +72,7 @@ minimal-org-policies/
 
 | 구분 | 제약조건 이름 (`constraints/` 제외) | 초기 상태 | 예외 키 (`exempt-*`) | 태그 인식 범위 | 비고 |
 | :--- | :--- | :---: | :---: | :---: | :--- |
-| **Baseline** | `iam.managed.allowedPolicyMembers` | `spec` | `public_iam` | 프로젝트·리소스 | 차세대 도메인 제한 (2024.05+ 신규 조직 기본 강제 / 기존 조직은 `dry_run_spec` 시작 가능) |
+| **Baseline** | `iam.managed.allowedPolicyMembers` | `spec` | `public_iam` | 프로젝트·리소스 | 차세대 도메인 제한 (신규 조직의 기본 레거시 `iam.allowedPolicyMemberDomains` 대체 / 기존 조직은 `dry_run_spec` 시작 가능) |
 | Baseline | `iam.automaticIamGrantsForDefaultServiceAccounts` | `spec` | - | - | 신규 생성 프로젝트의 기본 SA `Editor` 자동 부여 차단 (2024.05+ 기본 강제) |
 | Baseline | `iam.serviceAccountKeyExposureResponse` | `spec` | - | - | 공개 저장소 등에 유출된 SA 키 감지 시 자동 비활성화 |
 | Baseline | `compute.managed.disableSerialPortAccess` | `spec` | - | - | VM 직렬 포트 접근 차단 |
@@ -81,7 +81,7 @@ minimal-org-policies/
 | Baseline | `compute.restrictXpnProjectLienRemoval` | `spec` | - | - | Shared VPC 호스트 프로젝트 삭제 방지 잠금(Lien) 보호 |
 | Baseline | `sql.managed.restrictPublicIp` | `spec` | `public_sql` | 프로젝트·인스턴스 | 신규 설정부터 적용 (기존 공인 IP 인스턴스는 유지됨) |
 | Baseline | `sql.managed.restrictAuthorizedNetworks` | `spec` | `public_sql` | 프로젝트·인스턴스 | 신규 설정부터 적용 |
-| Baseline | `compute.setNewProjectDefaultToZonalDNSOnly` | `spec` | - | - | 신규 프로젝트 내부 DNS 기본값을 Zonal DNS로 설정 (2024.05+ 기본 강제) |
+| Baseline | `compute.setNewProjectDefaultToZonalDNSOnly` | `spec` | - | - | 신규 프로젝트 내부 DNS 기본값을 Zonal DNS로 설정 |
 | Baseline | `essentialcontacts.managed.allowedContactDomains` | `spec` | - | - | 중요 알림 수신 도메인 제한 (`allowed_contact_domains` 필수 입력, 2024.05+ 기본 강제) |
 | Baseline | `compute.managed.disableNestedVirtualization` | `spec` | - | - | VM 중첩 가상화 비활성화 |
 | **Audit-First** | `iam.managed.disableServiceAccountKeyCreation` | `dry_run_spec` | `sa_key` | 프로젝트 | 2024년 5월 이후 생성된 조직은 이미 강제 중일 수 있음 |
@@ -164,7 +164,7 @@ handson_folder_display_name = "policy-handson-lab"
 billing_project_id          = "iam-seed-prod-01" # ADC 사용자 계정 실행 시 Quota Project 지정 필수
 
 allowed_contact_domains = [
-  "@example.com",
+  "@mycompany.com", # 실제 조직 이메일 도메인으로 변경 필수 ('@example.com' 예시 값은 validation에서 차단됨)
 ]
 ```
 
@@ -180,9 +180,9 @@ HANDSON_FOLDER=$(terraform output -raw handson_folder_id)
 gcloud org-policies list --folder="${HANDSON_FOLDER#folders/}"
 ```
 
-### 2단계. `dry_run_spec` 감사 로그 확인
+### 2단계. `dry_run_spec` 감사 로그 확인 및 Cloud Run 서비스 태그 예외 검증
 
-실습 폴더(`policy-handson-lab`) 아래에 테스트용 프로젝트를 하나 넣은 뒤, 인증 검사를 끈 내부용 Cloud Run 서비스(`--no-invoker-iam-check`)를 배포해 봅니다. `run.managed.requireInvokerIam` 정책이 `dry_run_spec` 상태이므로 배포는 막히지 않고 성공하며, 약 10~30초 뒤 감사 로그에 위반 기록이 남습니다.
+실습 폴더(`policy-handson-lab`) 아래에 테스트용 프로젝트를 하나 넣은 뒤, 인증 검사를 끈 내부용 Cloud Run 서비스(`--no-invoker-iam-check`)를 배포해 봅니다. `run.managed.requireInvokerIam` 정책이 `dry_run_spec` 상태이므로 배포는 막히지 않고 성공하며, 약 10~30초 뒤 감사 로그에 위반 기록(`dryRunResult="DENIED"`)이 남습니다.
 
 ```bash
 TEST_PROJECT_ID="<실습_폴더_하위_테스트_프로젝트_ID>"
@@ -205,6 +205,40 @@ gcloud logging read \
   --format="table(timestamp, protoPayload.metadata.constraint, protoPayload.metadata.liveResult, protoPayload.metadata.dryRunResult, protoPayload.resourceName)"
 ```
 
+이제 [`audit_first_policies.tf`](./audit_first_policies.tf)의 `dry_run_spec` 안에 정의된 예외 태그 조건식(`resource.matchTagId(...)` → `enforce = "FALSE"`)이 감사 모드에서도 정상 작동하는지 확인해 봅니다. 배포된 `policy-handson-svc` Cloud Run 서비스에 `exempt-serverless=true` 태그를 직접 부착한 뒤 서비스를 업데이트(`UpdateService`)하면, `dry_run_spec` 평가에서도 예외로 인정되어 더 이상 `dryRunResult="DENIED"` 감사 로그가 찍히지 않습니다. (실제 `spec`으로 강제 전환하기 전에 예외 태그가 제대로 먹히는지 미리 검증할 수 있습니다.)
+
+```bash
+# 1) Terraform 출력에서 serverless 예외 태그 값(예: <ORG_ID>/exempt-serverless/true) 조회
+SERVERLESS_TAG_VALUE=$(terraform output -json exemption_tag_values \
+  | python3 -c 'import sys,json; print(json.load(sys.stdin)["serverless"]["namespaced_ref"])')
+
+# 2) Cloud Run 서비스(policy-handson-svc) 리소스에 예외 태그 직접 부착
+#    (선언적으로 관리할 때는 terraform.tfvars의 regional_resource_tag_exemptions 사용 가능)
+gcloud resource-manager tags bindings create \
+  --tag-value="${SERVERLESS_TAG_VALUE}" \
+  --parent="//run.googleapis.com/projects/${TEST_PROJECT_ID}/locations/asia-northeast3/services/policy-handson-svc" \
+  --location="asia-northeast3"
+
+# 3) 태그 바인딩 반영(약 10~30초) 후 기준 시각을 기록하고, 같은 서비스를 다시 배포(UpdateService)
+sleep 15
+CHECK_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+gcloud run deploy policy-handson-svc \
+  --project="${TEST_PROJECT_ID}" \
+  --image="us-docker.pkg.dev/cloudrun/container/hello" \
+  --region="asia-northeast3" \
+  --ingress="internal" \
+  --no-invoker-iam-check \
+  --update-env-vars="DRYRUN_TAG_EXEMPT_TEST=true" \
+  --quiet
+
+# 4) 약 10~30초 뒤 CHECK_TIME 이후의 위반 감사 로그 조회 -> 0건(출력 없음)이면 dry_run에서도 예외 통과 검증 완료!
+gcloud logging read \
+  "log_id(\"cloudaudit.googleapis.com/policy\") AND protoPayload.metadata.\"@type\"=\"type.googleapis.com/google.cloud.audit.OrgPolicyDryRunAuditMetadata\" AND protoPayload.metadata.dryRunResult=\"DENIED\" AND timestamp>=\"${CHECK_TIME}\"" \
+  --project="${TEST_PROJECT_ID}" \
+  --format="table(timestamp, protoPayload.metadata.constraint, protoPayload.metadata.liveResult, protoPayload.metadata.dryRunResult, protoPayload.resourceName)"
+```
+
 ### 3단계. `spec`으로 바꿔 실제 차단 확인
 
 이번에는 [`audit_first_policies.tf`](./audit_first_policies.tf) 맨 아래에 있는 `run_require_invoker_iam` 블록에서 `dry_run_spec`을 `spec`으로 바꾸고 다시 적용해 봅니다.
@@ -224,7 +258,7 @@ resource "google_org_policy_policy" "run_require_invoker_iam" {
 ```bash
 terraform apply -parallelism=1
 
-# 똑같은 명령으로 다시 배포해 보면 조직 정책 위반(403)으로 바로 차단됩니다.
+# 예외 태그가 없는 새 서비스(policy-handson-svc-blocked)를 배포해 보면 조직 정책 위반(403)으로 바로 차단됩니다.
 gcloud run deploy policy-handson-svc-blocked \
   --project="${TEST_PROJECT_ID}" \
   --image="us-docker.pkg.dev/cloudrun/container/hello" \
@@ -234,9 +268,9 @@ gcloud run deploy policy-handson-svc-blocked \
   --quiet
 ```
 
-### 4단계. 예외 태그를 붙여 조건부 허용 확인
+### 4단계. 프로젝트 예외 태그를 붙여 조건부 허용 확인
 
-이 프로젝트가 공개 웹훅을 받아야 하는 예외 대상이라고 가정하고, `terraform.tfvars`의 `project_tag_exemptions`에 프로젝트를 등록합니다.
+이 프로젝트 전체가 공개 웹훅을 받아야 하는 예외 대상이라고 가정하고, `terraform.tfvars`의 `project_tag_exemptions`에 프로젝트를 등록합니다.
 
 ```hcl
 project_tag_exemptions = {
@@ -256,7 +290,13 @@ gcloud run deploy policy-handson-svc-blocked \
   --no-invoker-iam-check \
   --quiet
 
-# 테스트용 서비스 삭제
+# 2단계에서 gcloud로 직접 붙였던 Cloud Run 서비스 태그 바인딩 해제 후 테스트용 서비스 삭제
+gcloud resource-manager tags bindings delete \
+  --tag-value="${SERVERLESS_TAG_VALUE}" \
+  --parent="//run.googleapis.com/projects/${TEST_PROJECT_ID}/locations/asia-northeast3/services/policy-handson-svc" \
+  --location="asia-northeast3" \
+  --quiet
+
 gcloud run services delete policy-handson-svc policy-handson-svc-blocked \
   --project="${TEST_PROJECT_ID}" \
   --region="asia-northeast3" \

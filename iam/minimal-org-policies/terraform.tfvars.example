@@ -28,9 +28,9 @@ create_env_folders          = false                # 표준 환경 폴더(Prod, 
 # ------------------------------------------------------------------------------
 # 2. 도메인 제한(DRS), 중요 알림 도메인 및 신뢰 이미지 파라미터
 # ------------------------------------------------------------------------------
-# 보안·장애 중요 알림(Essential Contacts) 수신 허용 도메인 ('@' 시작 필수)
+# 보안·장애 중요 알림(Essential Contacts) 수신 허용 도메인 ('@' 시작 필수 — 실제 도메인으로 변경하지 않으면 validation 오류가 발생합니다)
 allowed_contact_domains = [
-  "@example.com",
+  "@example.com", # TODO: 실제 조직 이메일 도메인(예: "@mycompany.com")으로 변경하세요
 ]
 
 # 차세대 DRS(iam.managed.allowedPolicyMembers)에 현재 org_id 외 추가 허용할 외부 조직 ID

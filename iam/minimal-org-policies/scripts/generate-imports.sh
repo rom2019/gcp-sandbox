@@ -137,12 +137,14 @@ echo "    - 발견된 기존 정책: ${#CONSTRAINTS[@]}개 (각 정책 상세 sp
 {
   echo "["
   first=1
-  for c in "${CONSTRAINTS[@]}"; do
-    [[ -z "$c" ]] && continue
-    [[ $first -eq 0 ]] && echo ","
-    gcloud org-policies describe "$c" "${GCLOUD_ARGS[@]}"
-    first=0
-  done
+  if [[ ${#CONSTRAINTS[@]} -gt 0 ]]; then
+    for c in "${CONSTRAINTS[@]}"; do
+      [[ -z "$c" ]] && continue
+      [[ $first -eq 0 ]] && echo ","
+      gcloud org-policies describe "$c" "${GCLOUD_ARGS[@]}"
+      first=0
+    done
+  fi
   echo "]"
 } > "${TMP_JSON}"
 
